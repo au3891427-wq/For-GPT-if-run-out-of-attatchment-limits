@@ -256,12 +256,6 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    @Override
-    public void onDisable() {
-        if (clientModPresenceListener != null) {
-            clientModPresenceListener.close();
-        }
-    }
 
     private void migrateLegacyCooldownDefault(String path, int previousDefault, int newDefault) {
         if (getConfig().getInt(path, newDefault) == previousDefault) {
@@ -353,6 +347,10 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (clientModPresenceListener != null) {
+            clientModPresenceListener.close();
+            clientModPresenceListener = null;
+        }
         if (updateNotifier != null) {
             updateNotifier.stop();
             updateNotifier = null;
