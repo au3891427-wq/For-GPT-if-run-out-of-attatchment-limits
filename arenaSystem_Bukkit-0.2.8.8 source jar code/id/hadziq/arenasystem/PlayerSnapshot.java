@@ -53,7 +53,7 @@ final class PlayerSnapshot {
       this.maxHealthBaseValue = maxHealthAttribute == null ? 20.0 : maxHealthAttribute.getBaseValue();
       AttributeInstance attackSpeedAttribute = player.getAttribute(Attribute.ATTACK_SPEED);
       this.attackSpeedBaseValue = attackSpeedAttribute == null ? 4.0 : attackSpeedAttribute.getBaseValue();
-      this.potionEffects = new ArrayList<>(player.getActivePotionEffects());
+      this.potionEffects = new ArrayList<PotionEffect>(player.getActivePotionEffects());
    }
 
    private PlayerSnapshot(
@@ -123,7 +123,7 @@ final class PlayerSnapshot {
       player.setFoodLevel(this.foodLevel);
       player.setSaturation(this.saturation);
 
-      for (PotionEffect effect : new ArrayList<>(player.getActivePotionEffects())) {
+      for (PotionEffect effect : new ArrayList<PotionEffect>(player.getActivePotionEffects())) {
          player.removePotionEffect(effect.getType());
       }
 
