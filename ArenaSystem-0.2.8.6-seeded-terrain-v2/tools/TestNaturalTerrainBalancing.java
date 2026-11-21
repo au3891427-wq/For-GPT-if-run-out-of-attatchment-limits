@@ -68,8 +68,8 @@ public final class TestNaturalTerrainBalancing {
     }
 
     private static void testRelicObjectiveShrineIsFlat() {
-        int radius = 40;
-        int offset = 32;
+        int radius = 56;
+        int offset = radius - 8;
         List<int[]> anchors = SeededTerrainBlender.anchors(offset, 2);
         TerrainProfile base = natural(radius);
         TerrainProfile balanced = TerrainNormalizer.normalizeNatural(base, anchors, 6, 6).profile();
