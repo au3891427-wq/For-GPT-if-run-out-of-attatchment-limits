@@ -395,6 +395,17 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
     void loadArenas() {
         loadQuarantinedAreas();
         var section = getConfig().getConfigurationSection("arenas");
+        Set<String> registeredArenaNames = section == null
+                ? Collections.emptySet() : new HashSet<>(section.getKeys(false));
+        try {
+            int orphanedWorlds = ArenaWorldManager.cleanupOrphanedWorlds(this, registeredArenaNames);
+            if (orphanedWorlds > 0) {
+                getLogger().info("Membersihkan " + orphanedWorlds
+                        + " dedicated world tanpa registrasi arena.");
+            }
+        } catch (Exception ex) {
+            getLogger().severe("Cleanup dedicated world tanpa registrasi gagal: " + ex.getMessage());
+        }
         if (section == null) return;
 
         for (String key : section.getKeys(false)) {
@@ -866,6 +877,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             }
             return;
         }
+        ArenaData failedArena = incompleteArenas.get(key);
         try {
             removeArenaRecord(key);
         } catch (RuntimeException ex) {
@@ -884,6 +896,9 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         sender.sendMessage(ChatColor.YELLOW + "Regenerasi dibatalkan. World arena sudah dikembalikan ke kondisi awal dan arena lama "
                 + key + " TIDAK lagi tersedia (record dihapus). Buat ulang dengan /arena create " + key + ".");
+        if (failedArena != null && ArenaWorldManager.isManagedWorld(key, failedArena.worldName)) {
+            scheduleManagedWorldDeletion(key, failedArena.seed, sender, 0);
+        }
     }
 
     /**
@@ -1489,6 +1504,9 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             arenas.remove(name);
             buildingArenas.remove(name);
             sender.sendMessage(ChatColor.GREEN + "Recovery " + name + " selesai. World dikembalikan ke keadaan sebelum generator dijalankan.");
+            if (ArenaWorldManager.isManagedWorld(name, data.worldName)) {
+                scheduleManagedWorldDeletion(name, data.seed, sender, 0);
+            }
         }, ex -> {
             markRecoveryRequired(name);
             buildingArenas.remove(name);
