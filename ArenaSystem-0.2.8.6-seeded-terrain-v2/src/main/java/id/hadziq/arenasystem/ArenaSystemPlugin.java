@@ -986,22 +986,51 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
 
         Map<BlockPos, String> toClear = new LinkedHashMap<>();
-        // Use the arena's saved terrain band rather than the current highest block in
-        // each column. Tall structures or cliffs can otherwise hide ground-level grass
-        // from a surface-only scan.
-        int scanMinY = Math.max(world.getMinHeight(), Math.min(arena.minSurfaceY, arena.maxSurfaceY) + 1);
-        int scanMaxY = Math.min(world.getMaxHeight() - 1, Math.max(arena.minSurfaceY, arena.maxSurfaceY) + 12);
-        for (int x = -arena.radius; x <= arena.radius; x++) {
-            for (int z = -arena.radius; z <= arena.radius; z++) {
-                for (int y = scanMinY; y <= scanMaxY; y++) {
-                    Block block = world.getBlockAt(arena.centerX + x, y, arena.centerZ + z);
-                    if (!ArenaGenerator.isCombatVegetation(block.getType())
-                            || block.getState() instanceof TileState) continue;
+        boolean dedicatedWorld = ArenaWorldManager.isManagedWorld(arena.name, arena.worldName);
+        boolean[][] naturalCleanupMask = dedicatedWorld
+                ? ArenaGenerator.naturalCombatCleanupMask(arena, arena.seed,
+                        activeTeamCount(arena.name, arena.mode))
+                : null;
 
-                    BlockPos relative = new BlockPos(x, y - arena.centerY, z);
-                    String originalData = block.getBlockData().getAsString();
-                    snapshot.putIfAbsent(relative, originalData);
-                    toClear.put(relative, originalData);
+        if (dedicatedWorld) {
+            // Only rescan gameplay lanes, spawn pads and objectives. Trees and flora
+            // outside these zones remain part of the natural vanilla landscape.
+            for (int x = -arena.radius; x <= arena.radius; x++) {
+                for (int z = -arena.radius; z <= arena.radius; z++) {
+                    if (!naturalCleanupMask[x + arena.radius][z + arena.radius]) continue;
+                    int surfaceY = TerrainScanner.findSurface(world, arena.centerX + x, arena.centerZ + z);
+                    if (surfaceY == Integer.MIN_VALUE) continue;
+                    int scanMaxY = Math.min(world.getMaxHeight() - 1, surfaceY + 32);
+                    for (int y = surfaceY + 1; y <= scanMaxY; y++) {
+                        Block block = world.getBlockAt(arena.centerX + x, y, arena.centerZ + z);
+                        Material material = block.getType();
+                        if ((!ArenaGenerator.isCombatVegetation(material) && !ArenaGenerator.isTreePart(material))
+                                || block.getState() instanceof TileState) continue;
+
+                        BlockPos relative = new BlockPos(x, y - arena.centerY, z);
+                        String originalData = block.getBlockData().getAsString();
+                        snapshot.putIfAbsent(relative, originalData);
+                        toClear.put(relative, originalData);
+                    }
+                }
+            }
+        } else {
+            // Legacy arenas preserve the previous footprint-wide cleanup behavior.
+            // Use the saved terrain band so cliffs do not hide ground-level vegetation.
+            int scanMinY = Math.max(world.getMinHeight(), Math.min(arena.minSurfaceY, arena.maxSurfaceY) + 1);
+            int scanMaxY = Math.min(world.getMaxHeight() - 1, Math.max(arena.minSurfaceY, arena.maxSurfaceY) + 12);
+            for (int x = -arena.radius; x <= arena.radius; x++) {
+                for (int z = -arena.radius; z <= arena.radius; z++) {
+                    for (int y = scanMinY; y <= scanMaxY; y++) {
+                        Block block = world.getBlockAt(arena.centerX + x, y, arena.centerZ + z);
+                        if (!ArenaGenerator.isCombatVegetation(block.getType())
+                                || block.getState() instanceof TileState) continue;
+
+                        BlockPos relative = new BlockPos(x, y - arena.centerY, z);
+                        String originalData = block.getBlockData().getAsString();
+                        snapshot.putIfAbsent(relative, originalData);
+                        toClear.put(relative, originalData);
+                    }
                 }
             }
         }
