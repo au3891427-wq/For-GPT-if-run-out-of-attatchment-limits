@@ -1,3 +1,8 @@
+# ArenaSystem companion Fabric client requirement.
+client-mod:
+  required: true
+  timeout-seconds: 10
+
 # Checks the public release manifest and notifies console/server admins. No files are downloaded or installed.
 updates:
   enabled: true
