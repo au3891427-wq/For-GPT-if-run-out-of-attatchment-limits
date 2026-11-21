@@ -1,4 +1,8 @@
 # Checks the public release manifest and notifies console/server admins. No files are downloaded or installed.
+client-mod:
+  # Reject players who do not complete the companion mod handshake.
+  required: true
+
 updates:
   enabled: true
   check-interval-hours: 6
