@@ -561,8 +561,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
     }
 
     void createArena(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "Jalankan perintah ini dari dalam game, di titik tengah arena.");
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.RED + "Jalankan perintah ini dari dalam game.");
             return;
         }
         if (args.length < 2) {
@@ -580,11 +580,6 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             sender.sendMessage(ChatColor.RED + "Nama arena sudah terdaftar atau masih memiliki data pemulihan.");
             return;
         }
-
-        Player player = (Player) sender;
-        World world = player.getWorld();
-        int centerX = player.getLocation().getBlockX();
-        int centerZ = player.getLocation().getBlockZ();
 
         long seed = System.currentTimeMillis();
         String mode = "tdm";
@@ -611,17 +606,89 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                 }
             }
         }
-        int radius = radiusForMode(mode);
-        if (overlapsExistingArena(world, centerX, centerZ, radius)) {
-            player.sendMessage(ChatColor.RED + "Lokasi bertumpang tindih dengan arena terdaftar atau area karantina (lihat /arena quarantine list).");
+
+        player.sendMessage(ChatColor.GREEN + "Menyiapkan dedicated world vanilla untuk arena " + name + "...");
+        player.sendMessage(ChatColor.GRAY + "World seed: " + seed + " | mode: " + mode.toUpperCase(Locale.ROOT));
+        // World creation/loading must happen outside Paper's world-ticking phase.
+        Bukkit.getScheduler().runTaskLater(this,
+                () -> createDedicatedArenaWorld(player, name, seed, mode, 0), 1L);
+    }
+
+    private void createDedicatedArenaWorld(Player player, String arenaName, long seed, String mode, int attempts) {
+        if (!player.isOnline()) return;
+        if (Bukkit.isTickingWorlds()) {
+            if (attempts >= 40) {
+                player.sendMessage(ChatColor.RED + "World arena belum dapat dibuat karena server terus berada dalam fase world tick.");
+                return;
+            }
+            Bukkit.getScheduler().runTaskLater(this,
+                    () -> createDedicatedArenaWorld(player, arenaName, seed, mode, attempts + 1), 1L);
             return;
         }
-        int span = radius * 2 + 1;
-        player.sendMessage(ChatColor.GREEN + "Memindai kontur medan " + span + "x" + span + " untuk mode "
-                + mode.toUpperCase(Locale.ROOT) + ". Bentuk arena akan dibuat khusus untuk mode ini...");
-        player.sendMessage(ChatColor.GRAY + "Seed layout: " + seed
-                + " | simpan angka ini untuk mereproduksi variasi struktur pada lokasi yang sama.");
-        scanAndBuild(player, name, world, centerX, centerZ, seed, mode);
+
+        World world = null;
+        try {
+            world = ArenaWorldManager.createNew(this, arenaName, seed);
+            Location spawn = world.getSpawnLocation();
+            int centerX = spawn.getBlockX();
+            int centerZ = spawn.getBlockZ();
+            player.sendMessage(ChatColor.GREEN + "Dedicated world dibuat: " + world.getName()
+                    + ". Memindai area " + (radiusForMode(mode) * 2 + 1) + "x"
+                    + (radiusForMode(mode) * 2 + 1) + " di sekitar world spawn...");
+            scanAndBuild(player, arenaName, world, centerX, centerZ, seed, mode);
+        } catch (Exception ex) {
+            if (world != null) scheduleManagedWorldDeletion(arenaName, seed, null, 0);
+            player.sendMessage(ChatColor.RED + "Pembuatan world arena gagal: " + ex.getMessage());
+            getLogger().severe("Dedicated world untuk arena " + arenaName + " gagal dibuat: " + ex.getMessage());
+        }
+    }
+
+    private void scheduleUnregisteredWorldCleanup(String arenaName, int attempts) {
+        if (attempts >= 40) {
+            getLogger().warning("Cleanup world arena '" + arenaName
+                    + "' ditunda; operasi world belum dapat dijalankan di luar fase tick.");
+            return;
+        }
+        if (Bukkit.isTickingWorlds()) {
+            Bukkit.getScheduler().runTaskLater(this,
+                    () -> scheduleUnregisteredWorldCleanup(arenaName, attempts + 1), 1L);
+            return;
+        }
+        try {
+            if (!ArenaWorldManager.deleteUnregisteredWorld(this, arenaName)) {
+                getLogger().warning("World arena sementara '" + arenaName
+                        + "' tidak ditemukan atau tidak memiliki marker yang valid; folder tidak disentuh.");
+            }
+        } catch (Exception ex) {
+            getLogger().severe("Gagal membersihkan world arena sementara '" + arenaName + "': " + ex.getMessage());
+        }
+    }
+
+    private void scheduleManagedWorldDeletion(String arenaName, long seed, CommandSender sender, int attempts) {
+        if (attempts >= 40) {
+            getLogger().warning("Penghapusan world arena '" + arenaName + "' belum dapat dijalankan di luar fase tick.");
+            if (sender != null) sender.sendMessage(ChatColor.YELLOW
+                    + "Registrasi arena sudah dihapus, tetapi folder world masih tersimpan. Periksa log server.");
+            return;
+        }
+        if (Bukkit.isTickingWorlds()) {
+            Bukkit.getScheduler().runTaskLater(this,
+                    () -> scheduleManagedWorldDeletion(arenaName, seed, sender, attempts + 1), 1L);
+            return;
+        }
+        try {
+            boolean deleted = ArenaWorldManager.deleteManagedWorld(this, arenaName, seed);
+            if (sender != null) {
+                sender.sendMessage(deleted
+                        ? ChatColor.GREEN + "Dedicated world arena " + arenaName + " ikut dihapus."
+                        : ChatColor.YELLOW + "World arena " + arenaName
+                                + " masih memiliki pemain; folder dipertahankan demi keamanan.");
+            }
+        } catch (Exception ex) {
+            getLogger().severe("World arena '" + arenaName + "' tidak dapat dihapus: " + ex.getMessage());
+            if (sender != null) sender.sendMessage(ChatColor.YELLOW
+                    + "Registrasi arena dihapus, tetapi dedicated world gagal dibersihkan: " + ex.getMessage());
+        }
     }
 
     void scanAndBuild(CommandSender sender, String name, World world, int centerX, int centerZ, long seed, String mode) {
