@@ -112,8 +112,8 @@ final class TerrainNormalizer {
             boolean xAxis = anchor[0] != 0;
             int coordinate = xAxis ? anchor[0] : anchor[1];
             int direction = Integer.compare(0, coordinate);
-            int start = coordinate - direction * padHalfSize;
-            int end = direction * 4;
+            int start = coordinate + direction * padHalfSize;
+            int end = -direction * 4;
             int distance = Math.abs(end - start);
             int elevationDelta = Math.abs(objectiveY - sharedSpawnY);
             if (distance <= 0 || elevationDelta > distance) {
