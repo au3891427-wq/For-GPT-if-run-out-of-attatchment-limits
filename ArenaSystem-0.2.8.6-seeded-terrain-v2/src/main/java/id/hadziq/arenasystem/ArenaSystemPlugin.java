@@ -795,9 +795,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                         // Legacy arenas retain the original full-footprint one-block slope normalization.
                         TerrainProfile blended = SeededTerrainBlender.blend(originalProfile, seed, spawnOffset, activeTeams,
                                 maxSeedDelta, world.getMinHeight(), world.getMaxHeight());
+                        int spawnPadHalfSize = "relic_rush".equalsIgnoreCase(mode) ? 6
+                                : SeededTerrainBlender.PAD_HALF_SIZE;
                         normalization = dedicatedWorld
                                 ? TerrainNormalizer.normalizeNatural(blended,
-                                        SeededTerrainBlender.anchors(spawnOffset, activeTeams))
+                                        SeededTerrainBlender.anchors(spawnOffset, activeTeams), spawnPadHalfSize)
                                 : TerrainNormalizer.normalize(blended, maxAdjacentStep,
                                         SeededTerrainBlender.anchors(spawnOffset, activeTeams));
                     } catch (IllegalStateException | IllegalArgumentException ex) {
