@@ -140,6 +140,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
     NamespacedKey randomStuffDropExpiresKey;
     NamespacedKey randomStuffProjectileKey;
     PlayerArenaListener playerArenaListener;
+    ClientModPresenceListener clientModPresenceListener;
     ClassAbilityListener classAbilityListener;
     ClassPassiveManager classPassiveManager;
     PluginUpdateNotifier updateNotifier;
@@ -227,6 +228,9 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         if (getCommand("arena") != null) getCommand("arena").setExecutor(new ArenaCommandExecutor(this));
 
         var pm = getServer().getPluginManager();
+        clientModPresenceListener = new ClientModPresenceListener(this);
+        clientModPresenceListener.registerChannels();
+        pm.registerEvents(clientModPresenceListener, this);
         pm.registerEvents(new MobProtectionListener(this), this);
         pm.registerEvents(new BlockProtectionListener(this), this);
         playerArenaListener = new PlayerArenaListener(this);
@@ -249,6 +253,13 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         if (getConfig().getBoolean("updates.enabled", true)) {
             updateNotifier = new PluginUpdateNotifier(this);
             updateNotifier.start();
+        }
+    }
+
+    @Override
+    public void onDisable() {
+        if (clientModPresenceListener != null) {
+            clientModPresenceListener.close();
         }
     }
 
