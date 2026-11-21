@@ -27,10 +27,13 @@ final class ArenaGenerator {
         // Apply the normalized heightmap as real cut/fill edits before adding mode structures.
         // All edits are captured by SnapshotStore before the world is modified.
         normalizeSurface(world, arena, originalTerrain, terrain, edits, radius);
-        // Vegetation cleanup is part of the same snapshot-backed generation plan.
-        // This prevents tall grass from surviving on columns whose terrain height
-        // did not need cut/fill normalization.
-        queueCombatVegetationCleanup(world, arena, terrain, edits, radius);
+        // Legacy arenas keep the existing footprint-wide cleanup. Dedicated worlds
+        // retain natural flora outside the actual combat lanes, spawn pads and objective.
+        if (ArenaWorldManager.isManagedWorld(arena.name, world.getName())) {
+            queueNaturalCombatCleanup(world, arena, terrain, edits, seed, radius, teamCount);
+        } else {
+            queueCombatVegetationCleanup(world, arena, terrain, edits, radius);
+        }
 
         if ("relic_rush".equalsIgnoreCase(arena.mode)) {
             buildRelicRush(world, arena, terrain, edits, seed, radius);
@@ -39,6 +42,148 @@ final class ArenaGenerator {
         }
         buildPerimeter(world, arena, terrain, edits, radius);
         return new ArrayList<>(edits.values());
+    }
+
+    /**
+     * Dedicated-world cleanup is deliberately narrow: clear vegetation and tree
+     * canopy only around gameplay routes, spawn pads, objectives and major cover
+     * sites. Natural vegetation elsewhere in the arena footprint is preserved.
+     */
+    private static void queueNaturalCombatCleanup(World world, ArenaData arena,
+                                                  TerrainProfile terrain,
+                                                  Map<BlockPos, BlockEdit> edits,
+                                                  long seed, int radius, int teamCount) {
+        int size = radius * 2 + 1;
+        boolean[][] columns = new boolean[size][size];
+
+        markRect(columns, radius, -4, 4, -4, 4); // objective footprint
+
+        if ("relic_rush".equalsIgnoreCase(arena.mode)) {
+            double scale = radius / 40.0D;
+            int laneEnd = radius - 14;
+            int sideLaneOffset = (int) Math.round(18 * scale);
+            int crossLaneOuter = (int) Math.round(29 * scale);
+            int crossLaneInner = (int) Math.round(16 * scale);
+            int laneHalfWidth = Math.max(2, (int) Math.round(2 * scale));
+            int sanctumOffset = radius - 8;
+
+            // Main lane and the two side lanes, including a small canopy-clearance buffer.
+            markRect(columns, radius, -laneEnd, laneEnd, -laneHalfWidth - 2, laneHalfWidth + 2);
+            for (int side : new int[]{-sideLaneOffset, sideLaneOffset}) {
+                markRect(columns, radius, -laneEnd, laneEnd,
+                        side - laneHalfWidth - 2, side + laneHalfWidth + 2);
+            }
+
+            // Cross-lanes and their structural intersections.
+            int[] crossLanes = {-crossLaneOuter, -crossLaneInner, 0, crossLaneInner, crossLaneOuter};
+            for (int crossX : crossLanes) {
+                markRect(columns, radius, crossX - 3, crossX + 3,
+                        -sideLaneOffset, sideLaneOffset);
+            }
+
+            // Team sanctums and outpost groups.
+            markRect(columns, radius, -sanctumOffset - 6, -sanctumOffset + 6, -6, 6);
+            markRect(columns, radius, sanctumOffset - 6, sanctumOffset + 6, -6, 6);
+
+            int nearX = (int) Math.round(19 * scale);
+            int nearZ = (int) Math.round(9 * scale);
+            int farX = (int) Math.round(9 * scale);
+            int farZ = (int) Math.round(28 * scale);
+            int ringInnerX = (int) Math.round(24 * scale);
+            int ringInnerZ = (int) Math.round(28 * scale);
+            int ringOuterX = (int) Math.round(36 * scale);
+            int ringOuterZ = (int) Math.round(18 * scale);
+            int ringOuter = (int) Math.round(25 * scale);
+            for (int[] site : new int[][]{
+                    {nearX, -nearZ}, {nearX, nearZ}, {farX, -farZ}, {farX, farZ},
+                    {ringInnerX, -ringInnerZ}, {ringInnerX, ringInnerZ},
+                    {ringOuterX, -ringOuterZ}, {ringOuterX, ringOuterZ},
+                    {crossLaneOuter, -ringOuter}, {crossLaneOuter, ringOuter},
+                    {-crossLaneOuter, -ringOuter}, {-crossLaneOuter, ringOuter}
+            }) {
+                markMirroredRect(columns, radius, site[0], site[1], 3);
+            }
+            for (SeededArenaLayout.CoverSite site : SeededArenaLayout.relicRush(seed)) {
+                markMirroredRect(columns, radius, site.x(), site.z(), 3);
+            }
+        } else {
+            int spawnOffset = 27;
+            int crossLaneMinZ = teamCount >= 3 ? -27 : -19;
+            int crossLaneMaxZ = teamCount >= 4 ? 27 : 19;
+
+            markRect(columns, radius, -spawnOffset, spawnOffset, -4, 4);
+            markRect(columns, radius, -4, 4, crossLaneMinZ - 2, crossLaneMaxZ + 2);
+
+            markRect(columns, radius, -spawnOffset - 4, -spawnOffset + 4, -4, 4);
+            markRect(columns, radius, spawnOffset - 4, spawnOffset + 4, -4, 4);
+            if (teamCount >= 3) {
+                markRect(columns, radius, -4, 4, -31, -23);
+            }
+            if (teamCount >= 4) {
+                markRect(columns, radius, -4, 4, 23, 31);
+            }
+
+            // Fixed ruins and seed-selected cover sites.
+            for (int x : new int[]{-15, 15}) {
+                for (int z : new int[]{-15, 15}) {
+                    markRect(columns, radius, x - 3, x + 3, z - 3, z + 3);
+                }
+            }
+            for (SeededArenaLayout.CoverSite site : SeededArenaLayout.teamDeathmatch(seed)) {
+                markMirroredRect(columns, radius, site.x(), site.z(), 3);
+            }
+        }
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                if (!columns[x + radius][z + radius]) continue;
+                int surfaceY = terrain.heightAt(x, z);
+                int maxY = Math.min(world.getMaxHeight() - 1, surfaceY + 32);
+                for (int y = surfaceY + 1; y <= maxY; y++) {
+                    BlockPos pos = new BlockPos(x, y - arena.centerY, z);
+                    if (edits.containsKey(pos)) continue;
+
+                    Block block = world.getBlockAt(arena.centerX + x, y, arena.centerZ + z);
+                    Material material = block.getType();
+                    if ((isCombatVegetation(material) || isTreePart(material))
+                            && !(block.getState() instanceof TileState)) {
+                        add(edits, x, y - arena.centerY, z, Material.AIR);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void markMirroredRect(boolean[][] columns, int radius,
+                                         int centerX, int centerZ, int halfSize) {
+        for (int signX : new int[]{-1, 1}) {
+            for (int signZ : new int[]{-1, 1}) {
+                markRect(columns, radius,
+                        signX * centerX - halfSize, signX * centerX + halfSize,
+                        signZ * centerZ - halfSize, signZ * centerZ + halfSize);
+            }
+        }
+    }
+
+    private static void markRect(boolean[][] columns, int radius,
+                                 int minX, int maxX, int minZ, int maxZ) {
+        int fromX = Math.max(-radius, Math.min(minX, maxX));
+        int toX = Math.min(radius, Math.max(minX, maxX));
+        int fromZ = Math.max(-radius, Math.min(minZ, maxZ));
+        int toZ = Math.min(radius, Math.max(minZ, maxZ));
+        for (int x = fromX; x <= toX; x++) {
+            for (int z = fromZ; z <= toZ; z++) {
+                columns[x + radius][z + radius] = true;
+            }
+        }
+    }
+
+    private static boolean isTreePart(Material material) {
+        String name = material.name();
+        return name.endsWith("_LEAVES") || name.endsWith("_LOG") || name.endsWith("_WOOD")
+                || name.endsWith("_STEM") || name.endsWith("_HYPHAE")
+                || name.endsWith("_MUSHROOM_BLOCK") || name.equals("MUSHROOM_STEM")
+                || name.equals("BAMBOO") || name.equals("BAMBOO_BLOCK");
     }
 
     /** Queue low vegetation above the normalized surface as AIR edits. Existing
