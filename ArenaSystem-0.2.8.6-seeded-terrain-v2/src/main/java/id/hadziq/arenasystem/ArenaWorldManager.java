@@ -237,6 +237,9 @@ final class ArenaWorldManager {
         if (!folder.getParent().equals(container)) {
             throw new IOException("Path world arena berada di luar world container.");
         }
+        if (Files.isSymbolicLink(folder)) {
+            throw new IOException("Folder world arena tidak boleh berupa symbolic link.");
+        }
         return folder;
     }
 
@@ -247,8 +250,9 @@ final class ArenaWorldManager {
 
     private static void verifyMarker(Path folder, String arenaName, long seed) throws IOException {
         Path markerPath = folder.resolve(MARKER_FILE);
-        if (!Files.isDirectory(folder) || !Files.isRegularFile(markerPath)) {
-            throw new IOException("Folder world bukan world ArenaSystem yang tervalidasi: " + folder);
+        if (Files.isSymbolicLink(markerPath)
+                || !Files.isDirectory(folder) || !Files.isRegularFile(markerPath)) {
+            throw new IOException("Folder/marker world bukan world ArenaSystem yang tervalidasi: " + folder);
         }
         String actual = Files.readString(markerPath, StandardCharsets.UTF_8);
         String expected = markerContents(arenaName, seed);
