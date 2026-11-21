@@ -1,5 +1,6 @@
 package id.hadziq.arenasystem;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,198 +25,411 @@ import org.bukkit.plugin.messaging.Messenger;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.scheduler.BukkitTask;
 
+/**
+ * Enforces the companion client admission gate.
+ *
+ * The handshake follows an SVC-inspired staged flow:
+ * protocol negotiation -> per-session secret -> client proof -> server challenge
+ * -> client connection check -> acknowledgement.
+ */
 final class CompanionClientListener implements Listener, PluginMessageListener {
-   static final String CHANNEL = "arenasystem:mod_handshake";
-   private static final String BYPASS_PERMISSION = "arenasystem.client.bypass";
-   private static final long CHALLENGE_DELAY_TICKS = 2L;
-   private final JavaPlugin plugin;
-   private final Map<UUID, CompanionClientListener.PendingHandshake> pending = new HashMap<>();
-   private final Map<UUID, BukkitTask> scheduledChallenges = new HashMap<>();
-   private final Set<UUID> gatedPlayers = new HashSet<>();
-   private boolean closed;
+    static final String CHANNEL = "arenasystem:mod_handshake";
 
-   CompanionClientListener(JavaPlugin var1) {
-      this.plugin = var1;
-      Messenger var2 = var1.getServer().getMessenger();
-      var2.registerIncomingPluginChannel(var1, "arenasystem:mod_handshake", this);
-      var2.registerOutgoingPluginChannel(var1, "arenasystem:mod_handshake");
-   }
+    private static final String BYPASS_PERMISSION = "arenasystem.client.bypass";
+    private static final long CHALLENGE_DELAY_TICKS = 2L;
 
-   void start() {
-      for (Player var3 : Bukkit.getOnlinePlayers()) {
-         this.scheduleChallenge(var3);
-      }
-   }
+    private final JavaPlugin plugin;
+    private final Map<UUID, PendingHandshake> pending = new HashMap<>();
+    private final Map<UUID, BukkitTask> scheduledChallenges = new HashMap<>();
+    private final Set<UUID> gatedPlayers = new HashSet<>();
+    private boolean closed;
 
-   @EventHandler(priority = EventPriority.HIGHEST)
-   public void onPlayerJoin(PlayerJoinEvent var1) {
-      this.scheduleChallenge(var1.getPlayer());
-   }
+    CompanionClientListener(JavaPlugin plugin) {
+        this.plugin = plugin;
+        Messenger messenger = plugin.getServer().getMessenger();
+        messenger.registerIncomingPluginChannel(plugin, CHANNEL, this);
+        messenger.registerOutgoingPluginChannel(plugin, CHANNEL);
+    }
 
-   @EventHandler
-   public void onPlayerQuit(PlayerQuitEvent var1) {
-      UUID var2 = var1.getPlayer().getUniqueId();
-      this.cancelScheduledChallenge(var2);
-      this.cancelPendingHandshake(var2);
-      this.gatedPlayers.remove(var2);
-   }
+    void start() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            scheduleChallenge(player);
+        }
+    }
 
-   private void scheduleChallenge(Player var1) {
-      if (!this.closed && !this.isBypassed(var1)) {
-         UUID var2 = var1.getUniqueId();
-         this.cancelScheduledChallenge(var2);
-         this.cancelPendingHandshake(var2);
-         this.gatedPlayers.add(var2);
-         var1.setGameMode(GameMode.SPECTATOR);
-         BukkitTask var3 = Bukkit.getScheduler().runTaskLater(this.plugin, () -> {
-            this.scheduledChallenges.remove(var2);
-            if (!this.closed && var1.isOnline() && !this.isBypassed(var1)) {
-               this.sendChallenge(var1);
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        scheduleChallenge(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        cancelScheduledChallenge(playerId);
+        cancelPendingHandshake(playerId);
+        gatedPlayers.remove(playerId);
+    }
+
+    private void scheduleChallenge(Player player) {
+        if (closed || isBypassed(player)) {
+            return;
+        }
+
+        UUID playerId = player.getUniqueId();
+        cancelScheduledChallenge(playerId);
+        cancelPendingHandshake(playerId);
+
+        gatedPlayers.add(playerId);
+        player.setGameMode(GameMode.SPECTATOR);
+
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            scheduledChallenges.remove(playerId);
+            if (closed || !player.isOnline()) {
+                return;
             }
-         }, 2L);
-         this.scheduledChallenges.put(var2, var3);
-      }
-   }
 
-   private boolean isBypassed(Player var1) {
-      return var1.isOp() || var1.hasPermission("arenasystem.client.bypass");
-   }
-
-   private void sendChallenge(Player var1) {
-      UUID var2 = var1.getUniqueId();
-      UUID var3 = UUID.randomUUID();
-      long var4 = Math.max(5L, Math.min(60L, this.plugin.getConfig().getLong("client-mod.timeout-seconds", 10L)));
-      BukkitTask var6 = Bukkit.getScheduler().runTaskLater(this.plugin, () -> this.handleTimeout(var2, var3), var4 * 20L);
-      this.pending.put(var2, new CompanionClientListener.PendingHandshake(var3, var6));
-
-      try {
-         var1.sendPluginMessage(this.plugin, "arenasystem:mod_handshake", CompanionHandshakeProtocol.encodeChallenge(var3));
-      } catch (RuntimeException var8) {
-         this.plugin.getLogger().warning("Gagal mengirim challenge client mod ke " + var1.getName() + ": " + var8.getMessage());
-      }
-   }
-
-   public void onPluginMessageReceived(String var1, Player var2, byte[] var3) {
-      if (!this.closed && "arenasystem:mod_handshake".equals(var1) && var2 != null) {
-         UUID var4 = var2.getUniqueId();
-         CompanionClientListener.PendingHandshake var5 = this.pending.get(var4);
-         if (var5 != null) {
-            if (!CompanionHandshakeProtocol.isValidResponse(var3, var5.nonce())) {
-               this.plugin.getLogger().fine("Mengabaikan respons handshake client mod yang tidak valid dari " + var2.getName() + ".");
-            } else {
-               this.pending.remove(var4);
-               var5.timeoutTask().cancel();
-               this.gatedPlayers.remove(var4);
-               GameMode var6 = this.plugin.getServer().getDefaultGameMode();
-               var2.setGameMode(var6);
-               this.plugin
-                  .getLogger()
-                  .info("[ClientMod] " + var2.getName() + " berhasil diverifikasi; gamemode dikembalikan ke default server (" + var6 + ").");
+            if (isBypassed(player)) {
+                releaseForBypass(player);
+                return;
             }
-         }
-      }
-   }
 
-   private void handleTimeout(UUID var1, UUID var2) {
-      CompanionClientListener.PendingHandshake var3 = this.pending.get(var1);
-      if (var3 != null && var3.nonce().equals(var2)) {
-         this.pending.remove(var1);
-         this.gatedPlayers.remove(var1);
-         Player var4 = Bukkit.getPlayer(var1);
-         if (var4 != null && var4.isOnline()) {
-            this.plugin.getLogger().warning("[ClientMod] " + var4.getName() + " ditolak karena companion client mod tidak menyelesaikan verifikasi.");
-            var4.kickPlayer(
-               ChatColor.RED
-                  + "[ArenaSystem] Verifikasi client mod gagal.\n"
-                  + ChatColor.YELLOW
-                  + "Pasang Fabric API dan ArenaSystem Client Mod yang sesuai, lalu masuk kembali."
+            sendServerHello(player);
+        }, CHALLENGE_DELAY_TICKS);
+        scheduledChallenges.put(playerId, task);
+    }
+
+    private boolean isBypassed(Player player) {
+        return player.isOp() || player.hasPermission(BYPASS_PERMISSION);
+    }
+
+    private void sendServerHello(Player player) {
+        UUID playerId = player.getUniqueId();
+        UUID sessionId = UUID.randomUUID();
+        byte[] serverNonce = CompanionHandshakeProtocol.randomBytes(CompanionHandshakeProtocol.NONCE_BYTES);
+
+        long timeoutSeconds = Math.max(
+            5L,
+            Math.min(60L, plugin.getConfig().getLong("client-mod.timeout-seconds", 10L))
+        );
+        BukkitTask timeoutTask = Bukkit.getScheduler().runTaskLater(
+            plugin,
+            () -> handleTimeout(playerId, sessionId),
+            timeoutSeconds * 20L
+        );
+
+        PendingHandshake handshake = new PendingHandshake(sessionId, serverNonce, timeoutTask);
+        pending.put(playerId, handshake);
+
+        sendMessage(player, CompanionHandshakeProtocol.encodeServerHello(sessionId, serverNonce));
+    }
+
+    @Override
+    public void onPluginMessageReceived(String channel, Player player, byte[] payload) {
+        if (closed || !CHANNEL.equals(channel) || player == null || !player.isOnline()) {
+            return;
+        }
+
+        PendingHandshake handshake = pending.get(player.getUniqueId());
+        if (handshake == null) {
+            return;
+        }
+
+        CompanionHandshakeProtocol.Message message = CompanionHandshakeProtocol.decode(payload);
+        if (message == null) {
+            plugin.getLogger().fine("[ClientMod] Mengabaikan paket handshake malformed dari " + player.getName() + ".");
+            return;
+        }
+
+        if (!handshake.sessionId.equals(message.sessionId())) {
+            plugin.getLogger().fine("[ClientMod] Mengabaikan paket dari sesi lama milik " + player.getName() + ".");
+            return;
+        }
+
+        if (message.protocolVersion() != CompanionHandshakeProtocol.PROTOCOL_VERSION) {
+            rejectIncompatibleClient(player, handshake, message.protocolVersion());
+            return;
+        }
+
+        switch (message.type()) {
+            case CLIENT_HELLO -> handleClientHello(player, handshake, message.body());
+            case AUTHENTICATE -> handleAuthenticate(player, handshake, message.body());
+            case CONNECTION_CHECK -> handleConnectionCheck(player, handshake, message.body());
+            default -> plugin.getLogger().fine(
+                "[ClientMod] Mengabaikan pesan " + message.type() + " yang tidak sesuai arah dari " + player.getName() + "."
             );
-         }
-      }
-   }
+        }
+    }
 
-   private void cancelScheduledChallenge(UUID var1) {
-      BukkitTask var2 = this.scheduledChallenges.remove(var1);
-      if (var2 != null) {
-         var2.cancel();
-      }
-   }
+    private void handleClientHello(Player player, PendingHandshake handshake, byte[] body) {
+        if (handshake.stage != Stage.WAITING_CLIENT_HELLO || body.length != CompanionHandshakeProtocol.NONCE_BYTES * 2) {
+            return;
+        }
 
-   private void cancelPendingHandshake(UUID var1) {
-      CompanionClientListener.PendingHandshake var2 = this.pending.remove(var1);
-      if (var2 != null) {
-         var2.timeoutTask().cancel();
-      }
-   }
+        byte[] echoedServerNonce = Arrays.copyOfRange(body, 0, CompanionHandshakeProtocol.NONCE_BYTES);
+        if (!CompanionHandshakeProtocol.constantTimeEquals(handshake.serverNonce, echoedServerNonce)) {
+            plugin.getLogger().fine("[ClientMod] CLIENT_HELLO tidak cocok dengan challenge aktif dari " + player.getName() + ".");
+            return;
+        }
 
-   private boolean isGated(Player var1) {
-      return this.gatedPlayers.contains(var1.getUniqueId());
-   }
+        handshake.clientNonce = Arrays.copyOfRange(body, CompanionHandshakeProtocol.NONCE_BYTES, body.length);
+        handshake.sessionSecret = CompanionHandshakeProtocol.randomBytes(CompanionHandshakeProtocol.SECRET_BYTES);
+        handshake.authNonce = CompanionHandshakeProtocol.randomBytes(CompanionHandshakeProtocol.NONCE_BYTES);
+        handshake.stage = Stage.WAITING_AUTHENTICATE;
 
-   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-   public void onPendingMove(PlayerMoveEvent var1) {
-      if (this.isGated(var1.getPlayer()) && var1.getTo() != null) {
-         Location var2 = var1.getFrom();
-         Location var3 = var1.getTo();
-         boolean var4 = var2.getWorld() != var3.getWorld() || var2.getX() != var3.getX() || var2.getY() != var3.getY() || var2.getZ() != var3.getZ();
-         if (var4) {
-            var1.setTo(new Location(var2.getWorld(), var2.getX(), var2.getY(), var2.getZ(), var3.getYaw(), var3.getPitch()));
-         }
-      }
-   }
+        sendMessage(
+            player,
+            CompanionHandshakeProtocol.encodeAuthChallenge(
+                handshake.sessionId,
+                handshake.sessionSecret,
+                handshake.authNonce
+            )
+        );
+    }
 
-   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-   public void onPendingCommand(PlayerCommandPreprocessEvent var1) {
-      if (this.isGated(var1.getPlayer())) {
-         var1.setCancelled(true);
-      }
-   }
+    private void handleAuthenticate(Player player, PendingHandshake handshake, byte[] body) {
+        if (handshake.stage != Stage.WAITING_AUTHENTICATE || body.length != CompanionHandshakeProtocol.PROOF_BYTES) {
+            return;
+        }
 
-   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-   public void onPendingInteract(PlayerInteractEvent var1) {
-      if (this.isGated(var1.getPlayer())) {
-         var1.setCancelled(true);
-      }
-   }
+        byte[] expectedProof = CompanionHandshakeProtocol.createClientAuthProof(
+            handshake.sessionSecret,
+            handshake.sessionId,
+            handshake.serverNonce,
+            handshake.clientNonce,
+            handshake.authNonce
+        );
+        if (!CompanionHandshakeProtocol.constantTimeEquals(expectedProof, body)) {
+            plugin.getLogger().fine("[ClientMod] AUTHENTICATE tidak valid dari " + player.getName() + ".");
+            return;
+        }
 
-   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-   public void onPendingEntityInteract(PlayerInteractEntityEvent var1) {
-      if (this.isGated(var1.getPlayer())) {
-         var1.setCancelled(true);
-      }
-   }
+        handshake.checkNonce = CompanionHandshakeProtocol.randomBytes(CompanionHandshakeProtocol.NONCE_BYTES);
+        handshake.clientCheckProof = CompanionHandshakeProtocol.createClientCheckProof(
+            handshake.sessionSecret,
+            handshake.sessionId,
+            handshake.serverNonce,
+            handshake.clientNonce,
+            handshake.authNonce,
+            handshake.checkNonce
+        );
+        byte[] serverProof = CompanionHandshakeProtocol.createServerChallengeProof(
+            handshake.sessionSecret,
+            handshake.sessionId,
+            handshake.serverNonce,
+            handshake.clientNonce,
+            handshake.authNonce,
+            handshake.checkNonce
+        );
+        handshake.stage = Stage.WAITING_CONNECTION_CHECK;
 
-   void shutdown() {
-      if (!this.closed) {
-         this.closed = true;
+        sendMessage(
+            player,
+            CompanionHandshakeProtocol.encodeServerChallenge(
+                handshake.sessionId,
+                handshake.checkNonce,
+                serverProof
+            )
+        );
+    }
 
-         for (BukkitTask var2 : this.scheduledChallenges.values()) {
-            var2.cancel();
-         }
+    private void handleConnectionCheck(Player player, PendingHandshake handshake, byte[] body) {
+        if (handshake.stage != Stage.WAITING_CONNECTION_CHECK || body.length != CompanionHandshakeProtocol.PROOF_BYTES) {
+            return;
+        }
 
-         this.scheduledChallenges.clear();
+        if (!CompanionHandshakeProtocol.constantTimeEquals(handshake.clientCheckProof, body)) {
+            plugin.getLogger().fine("[ClientMod] CONNECTION_CHECK tidak valid dari " + player.getName() + ".");
+            return;
+        }
 
-         for (CompanionClientListener.PendingHandshake var7 : this.pending.values()) {
-            var7.timeoutTask().cancel();
-         }
+        byte[] serverAckProof = CompanionHandshakeProtocol.createServerAckProof(
+            handshake.sessionSecret,
+            handshake.sessionId,
+            handshake.serverNonce,
+            handshake.clientNonce,
+            handshake.authNonce,
+            handshake.checkNonce,
+            handshake.clientCheckProof
+        );
 
-         this.pending.clear();
-         GameMode var6 = this.plugin.getServer().getDefaultGameMode();
+        pending.remove(player.getUniqueId());
+        handshake.timeoutTask.cancel();
+        gatedPlayers.remove(player.getUniqueId());
 
-         for (UUID var3 : new HashSet<>(this.gatedPlayers)) {
-            Player var4 = Bukkit.getPlayer(var3);
-            if (var4 != null && var4.isOnline()) {
-               var4.setGameMode(var6);
+        GameMode defaultGameMode = plugin.getServer().getDefaultGameMode();
+        player.setGameMode(defaultGameMode);
+
+        sendMessage(player, CompanionHandshakeProtocol.encodeConnectionAck(handshake.sessionId, serverAckProof));
+
+        plugin.getLogger().info(
+            "[ClientMod] " + player.getName()
+                + " berhasil menyelesaikan handshake protocol v"
+                + CompanionHandshakeProtocol.PROTOCOL_VERSION
+                + "; gamemode dikembalikan ke default server (" + defaultGameMode + ")."
+        );
+    }
+
+    private void rejectIncompatibleClient(Player player, PendingHandshake handshake, int clientVersion) {
+        pending.remove(player.getUniqueId());
+        handshake.timeoutTask.cancel();
+
+        plugin.getLogger().warning(
+            "[ClientMod] " + player.getName() + " memakai protocol " + clientVersion
+                + ", sedangkan server membutuhkan protocol "
+                + CompanionHandshakeProtocol.PROTOCOL_VERSION + "."
+        );
+        player.kickPlayer(
+            ChatColor.RED + "[ArenaSystem] Versi companion client tidak kompatibel.\n"
+                + ChatColor.YELLOW + "Perbarui ArenaSystem Client Mod, lalu masuk kembali."
+        );
+    }
+
+    private void releaseForBypass(Player player) {
+        UUID playerId = player.getUniqueId();
+        cancelPendingHandshake(playerId);
+        gatedPlayers.remove(playerId);
+        player.setGameMode(plugin.getServer().getDefaultGameMode());
+        plugin.getLogger().info("[ClientMod] " + player.getName() + " melewati verifikasi melalui permission bypass.");
+    }
+
+    private void sendMessage(Player player, byte[] payload) {
+        try {
+            player.sendPluginMessage(plugin, CHANNEL, payload);
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning(
+                "[ClientMod] Gagal mengirim pesan handshake ke " + player.getName() + ": " + exception.getMessage()
+            );
+        }
+    }
+
+    private void handleTimeout(UUID playerId, UUID sessionId) {
+        PendingHandshake handshake = pending.get(playerId);
+        if (handshake == null || !handshake.sessionId.equals(sessionId)) {
+            return;
+        }
+
+        pending.remove(playerId);
+        gatedPlayers.remove(playerId);
+
+        Player player = Bukkit.getPlayer(playerId);
+        if (player != null && player.isOnline()) {
+            plugin.getLogger().warning(
+                "[ClientMod] " + player.getName() + " ditolak karena handshake protocol v"
+                    + CompanionHandshakeProtocol.PROTOCOL_VERSION + " tidak selesai sebelum timeout."
+            );
+            player.kickPlayer(
+                ChatColor.RED + "[ArenaSystem] Verifikasi client mod gagal.\n"
+                    + ChatColor.YELLOW + "Pasang atau perbarui Fabric API dan ArenaSystem Client Mod, lalu masuk kembali."
+            );
+        }
+    }
+
+    private void cancelScheduledChallenge(UUID playerId) {
+        BukkitTask task = scheduledChallenges.remove(playerId);
+        if (task != null) {
+            task.cancel();
+        }
+    }
+
+    private void cancelPendingHandshake(UUID playerId) {
+        PendingHandshake handshake = pending.remove(playerId);
+        if (handshake != null) {
+            handshake.timeoutTask.cancel();
+        }
+    }
+
+    private boolean isGated(Player player) {
+        return gatedPlayers.contains(player.getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onPendingMove(PlayerMoveEvent event) {
+        if (isGated(event.getPlayer()) && event.getTo() != null) {
+            Location from = event.getFrom();
+            Location to = event.getTo();
+            boolean positionChanged = from.getWorld() != to.getWorld()
+                || from.getX() != to.getX()
+                || from.getY() != to.getY()
+                || from.getZ() != to.getZ();
+            if (positionChanged) {
+                event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
             }
-         }
+        }
+    }
 
-         this.gatedPlayers.clear();
-         Messenger var9 = this.plugin.getServer().getMessenger();
-         var9.unregisterIncomingPluginChannel(this.plugin, "arenasystem:mod_handshake", this);
-         var9.unregisterOutgoingPluginChannel(this.plugin, "arenasystem:mod_handshake");
-      }
-   }
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onPendingCommand(PlayerCommandPreprocessEvent event) {
+        if (isGated(event.getPlayer())) {
+            event.setCancelled(true);
+        }
+    }
 
-   private record PendingHandshake(UUID nonce, BukkitTask timeoutTask) {
-   }
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onPendingInteract(PlayerInteractEvent event) {
+        if (isGated(event.getPlayer())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onPendingEntityInteract(PlayerInteractEntityEvent event) {
+        if (isGated(event.getPlayer())) {
+            event.setCancelled(true);
+        }
+    }
+
+    void shutdown() {
+        if (closed) {
+            return;
+        }
+
+        closed = true;
+
+        for (BukkitTask task : scheduledChallenges.values()) {
+            task.cancel();
+        }
+        scheduledChallenges.clear();
+
+        for (PendingHandshake handshake : pending.values()) {
+            handshake.timeoutTask.cancel();
+        }
+        pending.clear();
+
+        GameMode defaultGameMode = plugin.getServer().getDefaultGameMode();
+        for (UUID playerId : new HashSet<>(gatedPlayers)) {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player != null && player.isOnline()) {
+                player.setGameMode(defaultGameMode);
+            }
+        }
+        gatedPlayers.clear();
+
+        Messenger messenger = plugin.getServer().getMessenger();
+        messenger.unregisterIncomingPluginChannel(plugin, CHANNEL, this);
+        messenger.unregisterOutgoingPluginChannel(plugin, CHANNEL);
+    }
+
+    private enum Stage {
+        WAITING_CLIENT_HELLO,
+        WAITING_AUTHENTICATE,
+        WAITING_CONNECTION_CHECK
+    }
+
+    private static final class PendingHandshake {
+        private final UUID sessionId;
+        private final byte[] serverNonce;
+        private final BukkitTask timeoutTask;
+        private Stage stage = Stage.WAITING_CLIENT_HELLO;
+        private byte[] clientNonce;
+        private byte[] sessionSecret;
+        private byte[] authNonce;
+        private byte[] checkNonce;
+        private byte[] clientCheckProof;
+
+        private PendingHandshake(UUID sessionId, byte[] serverNonce, BukkitTask timeoutTask) {
+            this.sessionId = sessionId;
+            this.serverNonce = serverNonce.clone();
+            this.timeoutTask = timeoutTask;
+        }
+    }
 }
