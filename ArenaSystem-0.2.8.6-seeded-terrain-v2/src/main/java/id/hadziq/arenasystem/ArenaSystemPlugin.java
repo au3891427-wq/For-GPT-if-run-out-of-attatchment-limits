@@ -807,9 +807,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                                 maxSeedDelta, world.getMinHeight(), world.getMaxHeight());
                         int spawnPadHalfSize = "relic_rush".equalsIgnoreCase(mode) ? 6
                                 : SeededTerrainBlender.PAD_HALF_SIZE;
+                        int objectiveHalfSize = "relic_rush".equalsIgnoreCase(mode) ? 6 : 4;
                         normalization = dedicatedWorld
                                 ? TerrainNormalizer.normalizeNatural(blended,
-                                        SeededTerrainBlender.anchors(spawnOffset, activeTeams), spawnPadHalfSize)
+                                        SeededTerrainBlender.anchors(spawnOffset, activeTeams),
+                                        spawnPadHalfSize, objectiveHalfSize)
                                 : TerrainNormalizer.normalize(blended, maxAdjacentStep,
                                         SeededTerrainBlender.anchors(spawnOffset, activeTeams));
                     } catch (IllegalStateException | IllegalArgumentException ex) {
