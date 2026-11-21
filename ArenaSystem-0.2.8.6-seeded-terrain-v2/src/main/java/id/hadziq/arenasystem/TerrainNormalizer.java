@@ -3,9 +3,10 @@ package id.hadziq.arenasystem;
 import java.util.List;
 
 /**
- * Creates a slope-limited copy of the scanned surface map. The source profile is never
- * modified. The result is later materialized by ArenaGenerator and included in the
- * normal arena snapshot, so restore/delete can put the original terrain back.
+ * Produces a balanced copy of the scanned surface map without mutating the source.
+ * Legacy arenas use whole-footprint slope normalization; dedicated vanilla worlds
+ * preserve natural relief and only modify spawn pads, objective pads and combat lanes.
+ * The result is materialized by ArenaGenerator and included in the arena snapshot.
  */
 final class TerrainNormalizer {
     private TerrainNormalizer() {
