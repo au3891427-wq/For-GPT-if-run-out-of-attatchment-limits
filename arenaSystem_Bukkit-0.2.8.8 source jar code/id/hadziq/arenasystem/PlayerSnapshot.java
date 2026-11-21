@@ -123,7 +123,7 @@ final class PlayerSnapshot {
       player.setFoodLevel(this.foodLevel);
       player.setSaturation(this.saturation);
 
-      for (PotionEffect effect : new ArrayList(player.getActivePotionEffects())) {
+      for (PotionEffect effect : new ArrayList<>(player.getActivePotionEffects())) {
          player.removePotionEffect(effect.getType());
       }
 
