@@ -1,5 +1,5 @@
 name: ArenaSystem
-version: '0.2.8.6'
+version: '0.2.8.7'
 main: id.hadziq.arenasystem.ArenaSystemPlugin
 author: Hadziq
 api-version: '26.3'
@@ -16,3 +16,6 @@ permissions:
   arenasystem.bypass:
     description: Bypasses break/place protection rules inside arenas.
     default: false
+  arenasystem.client.bypass:
+    description: Allows an operator or trusted player to bypass the required companion client handshake.
+    default: op
