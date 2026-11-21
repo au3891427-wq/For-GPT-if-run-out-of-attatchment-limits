@@ -1449,8 +1449,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         incompleteArenas.put(name, old);
         arenas.remove(name);
-        sender.sendMessage(ChatColor.GRAY + "Seed layout regenerate: " + finalSeed
-                + " | gunakan seed lain untuk variasi struktur yang berbeda.");
+        sender.sendMessage(ChatColor.GRAY + (ArenaWorldManager.isManagedWorld(name, old.worldName)
+                ? "Regenerate dedicated world seed: " + finalSeed
+                        + " | seed world tetap; yang dibangun ulang hanya layout arena."
+                : "Seed layout regenerate: " + finalSeed
+                        + " | gunakan seed lain untuk variasi struktur yang berbeda."));
 
         stopAndRestoreMatch(name, () -> restoreArenaSnapshot(sender, old, false, () -> {
             World world = Bukkit.getWorld(old.worldName);
