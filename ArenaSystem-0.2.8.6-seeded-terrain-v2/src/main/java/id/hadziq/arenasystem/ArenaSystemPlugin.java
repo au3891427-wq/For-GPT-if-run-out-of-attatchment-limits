@@ -762,7 +762,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     int activeTeams = activeTeamCount(name, mode);
                     // Dedicated worlds already derive their natural terrain from the real Minecraft world seed.
                     // Do not layer the old synthetic value-noise terrain on top of vanilla world generation.
-                    int maxSeedDelta = ArenaWorldManager.worldNameFor(name).equals(world.getName()) ? 0
+                    int maxSeedDelta = ArenaWorldManager.isManagedWorld(name, world.getName()) ? 0
                             : Math.max(0, Math.min(SeededTerrainBlender.MAX_CONFIGURABLE_SEED_DELTA,
                                     getConfig().getInt("terrain.max-seed-delta", SeededTerrainBlender.DEFAULT_MAX_SEED_DELTA)));
                     TerrainNormalizer.Result normalization;
@@ -1341,7 +1341,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             incompleteArenas.remove(name);
             buildingArenas.remove(name);
             sender.sendMessage(ChatColor.GREEN + "Arena " + name + " dihapus dan blok yang dicatat telah dipulihkan.");
-            if (ArenaWorldManager.worldNameFor(name).equals(arena.worldName)) {
+            if (ArenaWorldManager.isManagedWorld(name, arena.worldName)) {
                 scheduleManagedWorldDeletion(name, arena.seed, sender, 0);
             }
         }, ex -> {
@@ -1394,8 +1394,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         long finalSeed = seedOverride != null ? seedOverride : old.seed;
         String targetMode = modeOverride != null ? modeOverride : old.mode;
-        if (ArenaWorldManager.worldNameFor(name).equals(old.worldName)
-                && finalSeed != old.seed) {
+        if (ArenaWorldManager.isManagedWorld(name, old.worldName) && finalSeed != old.seed) {
             sender.sendMessage(ChatColor.RED + "Seed dedicated world tidak dapat diganti dengan regenerate biasa.");
             sender.sendMessage(ChatColor.GRAY + "Untuk memakai seed dunia baru, hapus arena ini lalu buat ulang: /arena delete "
                     + name + " confirm, kemudian /arena create " + name + " " + finalSeed + " " + targetMode + ".");
