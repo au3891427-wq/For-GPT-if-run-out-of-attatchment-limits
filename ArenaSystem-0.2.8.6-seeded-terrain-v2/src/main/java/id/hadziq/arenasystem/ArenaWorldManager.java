@@ -137,6 +137,51 @@ final class ArenaWorldManager {
     }
 
     /**
+     * Removes marker-validated worlds whose arena registration is absent. This
+     * closes the crash window between world creation and the first durable arena
+     * record, and also cleans worlds left behind after a completed deletion.
+     */
+    static int cleanupOrphanedWorlds(JavaPlugin plugin, java.util.Set<String> registeredArenaNames)
+            throws IOException {
+        requireSafeLifecycleThread();
+
+        Path container = plugin.getServer().getWorldContainer().toPath().toAbsolutePath().normalize();
+        int deleted = 0;
+        try (Stream<Path> children = Files.list(container)) {
+            for (Path folder : children.toList()) {
+                String folderName = folder.getFileName().toString();
+                if (!isManagedWorldName(folderName)) continue;
+
+                Path markerPath = folder.resolve(MARKER_FILE);
+                if (!Files.isDirectory(folder) || !Files.isRegularFile(markerPath)) continue;
+
+                String[] lines = Files.readString(markerPath, StandardCharsets.UTF_8).split("\\R");
+                if (lines.length != 3 || !MARKER_FORMAT.equals(lines[0])
+                        || !lines[1].startsWith("arena=") || !lines[2].startsWith("seed=")) {
+                    continue;
+                }
+
+                String arenaName = lines[1].substring("arena=".length());
+                if (!ARENA_NAME.matcher(arenaName).matches()
+                        || !folderName.equals(worldNameFor(arenaName))
+                        || registeredArenaNames.contains(arenaName)) {
+                    continue;
+                }
+
+                final long seed;
+                try {
+                    seed = Long.parseLong(lines[2].substring("seed=".length()));
+                } catch (NumberFormatException ex) {
+                    continue;
+                }
+
+                if (deleteManagedWorld(plugin, arenaName, seed)) deleted++;
+            }
+        }
+        return deleted;
+    }
+
+    /**
      * Removes a newly-created world when generation fails before ArenaData is
      * persisted. The marker supplies the seed, but its arena identity and format
      * are still validated before any directory is deleted.
