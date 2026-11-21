@@ -153,7 +153,8 @@ final class ArenaWorldManager {
                 if (!isManagedWorldName(folderName)) continue;
 
                 Path markerPath = folder.resolve(MARKER_FILE);
-                if (!Files.isDirectory(folder) || !Files.isRegularFile(markerPath)) continue;
+                if (!Files.isDirectory(folder) || Files.isSymbolicLink(markerPath)
+                        || !Files.isRegularFile(markerPath)) continue;
 
                 String[] lines = Files.readString(markerPath, StandardCharsets.UTF_8).split("\\R");
                 if (lines.length != 3 || !MARKER_FORMAT.equals(lines[0])
@@ -192,7 +193,7 @@ final class ArenaWorldManager {
         String worldName = worldNameFor(arenaName);
         Path folder = worldFolder(plugin, worldName);
         Path markerPath = folder.resolve(MARKER_FILE);
-        if (!Files.isRegularFile(markerPath)) return false;
+        if (Files.isSymbolicLink(markerPath) || !Files.isRegularFile(markerPath)) return false;
 
         String marker = Files.readString(markerPath, StandardCharsets.UTF_8);
         String expectedPrefix = MARKER_FORMAT + "\n" + "arena=" + normalizeArenaName(arenaName) + "\n";
