@@ -11,6 +11,7 @@ import org.bukkit.entity.NPC;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
+import org.bukkit.entity.Warden;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -23,6 +24,7 @@ import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.potion.PotionEffectType;
 
 import io.papermc.paper.event.entity.EntityEffectTickEvent;
+import io.papermc.paper.event.entity.WardenAngerChangeEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 
@@ -208,24 +210,42 @@ final class MobProtectionListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onEntityTarget(org.bukkit.event.entity.EntityTargetLivingEntityEvent event) {
         Entity attacker = event.getEntity();
         if (!isProtectedEnemy(attacker)) return;
 
         if (plugin.findArenaFootprint(attacker.getLocation()) != null) {
             attacker.remove();
-            event.setCancelled(true);
+            event.setTarget(null);
+            event.setCancelled(false);
             return;
         }
 
-        // Hostile mob di luar arena tidak boleh mengunci pemain yang berada di dalam
-        // footprint ATAU masih terdaftar sebagai peserta pertandingan aktif.
+        // Jangan cancel event: Paper mendokumentasikan bahwa cancellation mempertahankan
+        // target lama. setTarget(null) benar-benar mengosongkan target mob.
         LivingEntity target = event.getTarget();
         if ((target instanceof Player player && isProtectedPlayer(player))
                 || (target != null && plugin.findArenaFootprint(target.getLocation()) != null)) {
-            event.setCancelled(true);
+            event.setTarget(null);
+            event.setCancelled(false);
+
+            // Warden juga menyimpan anger per-target, terpisah dari Mob#getTarget().
+            if (attacker instanceof Warden warden && target != null) {
+                warden.clearAnger(target);
+            }
         }
+    }
+
+    /**
+     * Warden dapat memperoleh anger dari getaran (termasuk langkah kaki), tanpa
+     * bergantung sepenuhnya pada target biasa. Jangan biarkan anger terhadap pemain
+     * yang dilindungi bertambah sehingga Warden tidak masuk ke perilaku pursuit/sonic boom.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onProtectedPlayerWardenAnger(WardenAngerChangeEvent event) {
+        if (!(event.getTarget() instanceof Player player) || !isProtectedPlayer(player)) return;
+        event.setNewAnger(0);
     }
 
     /**
