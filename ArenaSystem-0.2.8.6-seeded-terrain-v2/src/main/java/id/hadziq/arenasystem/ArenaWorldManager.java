@@ -216,7 +216,7 @@ final class ArenaWorldManager {
     }
 
     private static WorldCreator vanillaCreator(String worldName, long seed) {
-        return new WorldCreator(worldName)
+        return WorldCreator.name(worldName)
                 .seed(seed)
                 .environment(World.Environment.NORMAL)
                 .type(WorldType.NORMAL)
