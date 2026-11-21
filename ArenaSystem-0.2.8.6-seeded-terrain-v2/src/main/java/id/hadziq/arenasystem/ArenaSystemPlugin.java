@@ -840,7 +840,14 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         buildingArenas.remove(key);
         if (reason != null) sender.sendMessage(ChatColor.RED + reason);
-        if (!incompleteArenas.containsKey(key)) return;
+        if (!incompleteArenas.containsKey(key)) {
+            // A fresh dedicated world has no recovery record yet. Remove only the
+            // marker-validated temporary world; never touch an unrelated world folder.
+            if (!getConfig().contains("arenas." + key)) {
+                scheduleUnregisteredWorldCleanup(key, 0);
+            }
+            return;
+        }
         try {
             removeArenaRecord(key);
         } catch (RuntimeException ex) {
