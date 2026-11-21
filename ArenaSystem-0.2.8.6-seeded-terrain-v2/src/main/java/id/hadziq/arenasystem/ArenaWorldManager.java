@@ -150,7 +150,7 @@ final class ArenaWorldManager {
         try (Stream<Path> children = Files.list(container)) {
             for (Path folder : children.toList()) {
                 String folderName = folder.getFileName().toString();
-                if (!isManagedWorldName(folderName)) continue;
+                if (!isManagedWorldName(folderName) || Files.isSymbolicLink(folder)) continue;
 
                 Path markerPath = folder.resolve(MARKER_FILE);
                 if (!Files.isDirectory(folder) || Files.isSymbolicLink(markerPath)
