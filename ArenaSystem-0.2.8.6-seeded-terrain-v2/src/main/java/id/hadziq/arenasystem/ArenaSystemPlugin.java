@@ -143,6 +143,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
     ClassAbilityListener classAbilityListener;
     ClassPassiveManager classPassiveManager;
     PluginUpdateNotifier updateNotifier;
+    CompanionClientListener companionClientListener;
     BukkitTask relicCarrierMovementTask;
 
     @Override
@@ -168,6 +169,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         getConfig().addDefault("matches.keep-inventory.relic_rush", true);
         getConfig().addDefault("resource-pack.assassin-dagger.url", "");
         getConfig().addDefault("resource-pack.assassin-dagger.sha1", "c4bea426f1b8f643dd74aa5bf56588c966b6b4d2");
+        getConfig().addDefault("client-mod.required", true);
+        getConfig().addDefault("client-mod.timeout-seconds", 10);
         getConfig().addDefault("updates.enabled", true);
         getConfig().addDefault("updates.check-interval-hours", 6);
         getConfig().addDefault("updates.manifest-url", "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json");
@@ -239,13 +242,19 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         classPassiveManager = new ClassPassiveManager(this);
         pm.registerEvents(classPassiveManager, this);
 
+        if (getConfig().getBoolean("client-mod.required", true)) {
+            companionClientListener = new CompanionClientListener(this);
+            pm.registerEvents(companionClientListener, this);
+            companionClientListener.start();
+        }
+
         // Enforce carrier movement server-side every tick: walk speed alone does not
         // remove sprint-jump momentum already present in the player velocity.
         relicCarrierMovementTask = Bukkit.getScheduler().runTaskTimer(
                 this, this::enforceRelicCarrierMovement, 1L, 1L);
 
         loadArenas();
-        getLogger().info("ArenaSystem 0.2.8.6 aktif. Arena siap: " + arenas.size());
+        getLogger().info("ArenaSystem 0.2.8.7 aktif. Arena siap: " + arenas.size());
         if (getConfig().getBoolean("updates.enabled", true)) {
             updateNotifier = new PluginUpdateNotifier(this);
             updateNotifier.start();
@@ -342,6 +351,10 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (companionClientListener != null) {
+            companionClientListener.shutdown();
+            companionClientListener = null;
+        }
         if (updateNotifier != null) {
             updateNotifier.stop();
             updateNotifier = null;
