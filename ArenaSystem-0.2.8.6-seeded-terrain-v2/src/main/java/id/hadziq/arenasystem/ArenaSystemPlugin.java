@@ -693,8 +693,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
     }
 
     private void scheduleManagedWorldDeletion(String arenaName, long seed, CommandSender sender, int attempts) {
-        if (attempts >= 40) {
-            getLogger().warning("Penghapusan world arena '" + arenaName + "' belum dapat dijalankan di luar fase tick.");
+        if (attempts >= 200) {
+            getLogger().warning("Penghapusan world arena '" + arenaName + "' belum dapat diselesaikan setelah beberapa percobaan.");
             if (sender != null) sender.sendMessage(ChatColor.YELLOW
                     + "Registrasi arena sudah dihapus, tetapi folder world masih tersimpan. Periksa log server.");
             return;
@@ -706,11 +706,19 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         try {
             boolean deleted = ArenaWorldManager.deleteManagedWorld(this, arenaName, seed);
+            if (!deleted) {
+                World retainedWorld = Bukkit.getWorld(ArenaWorldManager.worldNameFor(arenaName));
+                if (retainedWorld != null && !retainedWorld.getPlayers().isEmpty() && attempts < 199) {
+                    Bukkit.getScheduler().runTaskLater(this,
+                            () -> scheduleManagedWorldDeletion(arenaName, seed, sender, attempts + 1), 1L);
+                    return;
+                }
+            }
             if (sender != null) {
                 sender.sendMessage(deleted
                         ? ChatColor.GREEN + "Dedicated world arena " + arenaName + " ikut dihapus."
                         : ChatColor.YELLOW + "World arena " + arenaName
-                                + " masih memiliki pemain; folder dipertahankan demi keamanan.");
+                                + " masih aktif atau gagal di-unload; folder dipertahankan demi keamanan.");
             }
         } catch (Exception ex) {
             getLogger().severe("World arena '" + arenaName + "' tidak dapat dihapus: " + ex.getMessage());
