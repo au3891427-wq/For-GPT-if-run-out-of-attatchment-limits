@@ -400,7 +400,22 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         for (String key : section.getKeys(false)) {
             String base = "arenas." + key + ".";
             String worldName = getConfig().getString(base + "world");
-            World world = worldName == null ? null : Bukkit.getWorld(worldName);
+            long savedSeed = getConfig().getLong(base + "seed", 0L);
+            World world = null;
+            if (worldName != null && ArenaWorldManager.isManagedWorldName(worldName)) {
+                try {
+                    if (!worldName.equals(ArenaWorldManager.worldNameFor(key))) {
+                        throw new IllegalStateException("Nama world tidak cocok dengan nama arena.");
+                    }
+                    world = ArenaWorldManager.loadExisting(this, key, savedSeed);
+                } catch (Exception ex) {
+                    getLogger().severe("Dedicated world untuk arena '" + key
+                            + "' gagal dimuat. Record dan data recovery dipertahankan: " + ex.getMessage());
+                    continue;
+                }
+            } else {
+                world = worldName == null ? null : Bukkit.getWorld(worldName);
+            }
             if (world == null) {
                 getLogger().warning("World untuk arena '" + key + "' tidak termuat: " + worldName);
                 continue;
@@ -415,7 +430,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             int radius = getConfig().getInt(base + "radius", TDM_RADIUS);
             ArenaData data = new ArenaData(
                     key.toLowerCase(Locale.ROOT), worldName,
-                    getConfig().getLong(base + "seed", 0L),
+                    savedSeed,
                     getConfig().getInt(base + "center-x"),
                     getConfig().getInt(base + "center-z"),
                     centerY,
