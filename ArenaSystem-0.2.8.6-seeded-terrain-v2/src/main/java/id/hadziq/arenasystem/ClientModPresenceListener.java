@@ -1,6 +1,15 @@
 package id.hadziq.arenasystem;
 
 import org.bukkit.Bukkit;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.Action;
+import org.bukkit.Location;
+import org.bukkit.GameMode;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -44,9 +53,14 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
     }
 
     void close() {
-        for (Session session : sessions.values()) {
+        for (Map.Entry<UUID, Session> entry : sessions.entrySet()) {
+            Session session = entry.getValue();
             cancel(session.registrationTask);
             cancel(session.responseTimeoutTask);
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player != null && player.isOnline()) {
+                releasePendingGate(player, session);
+            }
         }
         sessions.clear();
 
@@ -68,6 +82,15 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
 
         Session session = new Session(UUID.randomUUID());
         sessions.put(playerId, session);
+
+        if (plugin.getConfig().getBoolean("client-mod.required", true)
+                && !player.hasPermission("arenasystem.clientmod.bypass")) {
+            session.originalGameMode = player.getGameMode();
+            session.gateActive = true;
+            player.setGameMode(GameMode.SPECTATOR);
+            player.sendMessage(ChatColor.YELLOW
+                    + "[ArenaSystem] Memeriksa companion client mod. Akses sementara dibatasi.");
+        }
 
         // Wait for the client's minecraft:register packet before sending. Paper
         // drops outgoing plugin messages for channels the client has not registered.
@@ -155,6 +178,54 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
                 "companion mod handshake verified (protocol " + protocolVersion + ")");
     }
 
+    private boolean isPendingGate(Player player) {
+        Session session = sessions.get(player.getUniqueId());
+        return session != null && session.gateActive;
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPendingMove(PlayerMoveEvent event) {
+        if (!isPendingGate(event.getPlayer()) || event.getTo() == null) return;
+
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        boolean changedPosition = from.getWorld() != to.getWorld()
+                || from.getX() != to.getX()
+                || from.getY() != to.getY()
+                || from.getZ() != to.getZ();
+        if (changedPosition) {
+            event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(),
+                    to.getYaw(), to.getPitch()));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPendingCommand(PlayerCommandPreprocessEvent event) {
+        if (!isPendingGate(event.getPlayer())) return;
+        event.setCancelled(true);
+        event.getPlayer().sendMessage(ChatColor.YELLOW
+                + "[ArenaSystem] Tunggu sampai verifikasi client mod selesai.");
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPendingInteract(PlayerInteractEvent event) {
+        if (isPendingGate(event.getPlayer())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPendingEntityInteract(PlayerInteractEntityEvent event) {
+        if (isPendingGate(event.getPlayer())) event.setCancelled(true);
+    }
+
+    private void releasePendingGate(Player player, Session session) {
+        if (!session.gateActive) return;
+        session.gateActive = false;
+        if (session.originalGameMode != null && player.isOnline()) {
+            player.setGameMode(session.originalGameMode);
+        }
+        session.originalGameMode = null;
+    }
+
     private void finish(Player player, Session session, Result result, String detail) {
         if (sessions.get(player.getUniqueId()) != session) return;
 
@@ -167,6 +238,9 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
 
         boolean enforcementEnabled = plugin.getConfig().getBoolean("client-mod.required", true);
         boolean bypass = player.hasPermission("arenasystem.clientmod.bypass");
+        if (result == Result.VERIFIED || bypass || !enforcementEnabled) {
+            releasePendingGate(player, session);
+        }
         if (result != Result.VERIFIED && enforcementEnabled && !bypass) {
             String kickMessage = switch (result) {
                 case NOT_REGISTERED -> ChatColor.RED
@@ -228,6 +302,8 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
         private final UUID nonce;
         private int registrationPolls;
         private boolean awaitingResponse;
+        private boolean gateActive;
+        private GameMode originalGameMode;
         private Result result = Result.PENDING;
         private BukkitTask registrationTask;
         private BukkitTask responseTimeoutTask;
