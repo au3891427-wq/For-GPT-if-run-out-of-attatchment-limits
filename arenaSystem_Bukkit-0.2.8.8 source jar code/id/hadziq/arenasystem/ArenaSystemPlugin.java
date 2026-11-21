@@ -259,7 +259,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
       this.relicCarrierMovementTask = Bukkit.getScheduler().runTaskTimer(this, this::enforceRelicCarrierMovement, 1L, 1L);
       this.loadArenas();
-      this.getLogger().info("ArenaSystem 0.2.8.8 aktif. Arena siap: " + this.arenas.size());
+      this.getLogger().info("ArenaSystem 0.2.8.9 aktif. Arena siap: " + this.arenas.size());
       if (this.getConfig().getBoolean("updates.enabled", true)) {
          this.updateNotifier = new PluginUpdateNotifier(this);
          this.updateNotifier.start();
