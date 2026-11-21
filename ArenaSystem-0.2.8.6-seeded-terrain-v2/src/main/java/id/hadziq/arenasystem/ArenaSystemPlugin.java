@@ -784,13 +784,18 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     int maxSeedDelta = ArenaWorldManager.isManagedWorld(name, world.getName()) ? 0
                             : Math.max(0, Math.min(SeededTerrainBlender.MAX_CONFIGURABLE_SEED_DELTA,
                                     getConfig().getInt("terrain.max-seed-delta", SeededTerrainBlender.DEFAULT_MAX_SEED_DELTA)));
+                    boolean dedicatedWorld = ArenaWorldManager.isManagedWorld(name, world.getName());
                     TerrainNormalizer.Result normalization;
                     try {
-                        // Seed-dominant bounded blend first, then the 1-block slope normalizer on ALL active spawn anchors.
+                        // Dedicated worlds keep vanilla relief; only active spawn pads and their local ramps are balanced.
+                        // Legacy arenas retain the original full-footprint one-block slope normalization.
                         TerrainProfile blended = SeededTerrainBlender.blend(originalProfile, seed, spawnOffset, activeTeams,
                                 maxSeedDelta, world.getMinHeight(), world.getMaxHeight());
-                        normalization = TerrainNormalizer.normalize(blended, maxAdjacentStep,
-                                SeededTerrainBlender.anchors(spawnOffset, activeTeams));
+                        normalization = dedicatedWorld
+                                ? TerrainNormalizer.normalizeNatural(blended,
+                                        SeededTerrainBlender.anchors(spawnOffset, activeTeams))
+                                : TerrainNormalizer.normalize(blended, maxAdjacentStep,
+                                        SeededTerrainBlender.anchors(spawnOffset, activeTeams));
                     } catch (IllegalStateException | IllegalArgumentException ex) {
                         abortBeforeBuild(sender, name, "Terrain tidak dapat dinormalkan dengan aman: " + ex.getMessage());
                         return;
@@ -810,8 +815,10 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     sender.sendMessage(ChatColor.AQUA + "[TerrainNormalizer] " + normalization.changedColumns()
                             + " kolom disesuaikan; perubahan maksimum " + normalization.maxAdjustment()
                             + " blok, rata-rata " + String.format(Locale.ROOT, "%.2f", normalization.averageAdjustment())
-                            + " blok; beda tinggi antarkolom dibatasi " + normalization.maxAdjacentStep()
-                            + " blok; kontur seed (maks " + maxSeedDelta + " blok) dicampur; elevasi dan pad spawn seluruh tim aktif diseimbangkan.");
+                            + " blok; " + (dedicatedWorld
+                                    ? "relief vanilla dipertahankan; pad spawn dan transisi lokal diseimbangkan."
+                                    : "beda tinggi antarkolom dibatasi " + normalization.maxAdjacentStep()
+                                            + " blok; kontur seed buatan dicampur dan spawn diseimbangkan."));
                     if (maxScannedAdjustment > maxColumnAdjustment) {
                         sender.sendMessage(ChatColor.RED + "Terrain terlalu ekstrem untuk dinormalkan dengan aman: "
                                 + "perubahan per kolom perlu " + maxScannedAdjustment
@@ -821,7 +828,9 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                         return;
                     }
 
-                    TerrainDetector.Report terrainReport = TerrainDetector.analyze(profile, radius, spawnOffset, activeTeams);
+                    TerrainDetector.Report terrainReport = dedicatedWorld
+                            ? TerrainDetector.analyzeNatural(profile, radius, spawnOffset, activeTeams)
+                            : TerrainDetector.analyze(profile, radius, spawnOffset, activeTeams);
                     sender.sendMessage(ChatColor.GOLD + "[TerrainDetector] Setelah normalisasi: " + terrainReport.summary());
                     for (String warning : terrainReport.warnings()) {
                         sender.sendMessage(ChatColor.YELLOW + "[TerrainDetector] " + warning);
