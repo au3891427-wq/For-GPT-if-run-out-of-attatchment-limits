@@ -736,6 +736,36 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
     }
 
+    /**
+     * Try the next deterministic center in the same seeded world when a candidate
+     * is unsafe or unsuitable. The arena lock remains held between scans.
+     */
+    private boolean retryDedicatedArenaLocation(CommandSender sender, String name, World world,
+                                                 long seed, String mode, int currentAttempt,
+                                                 String reason) {
+        if (!ArenaWorldManager.isManagedWorld(name, world.getName())) return false;
+
+        if (currentAttempt >= DEDICATED_ARENA_CENTER_OFFSETS.length) {
+            abortBeforeBuild(sender, name, "Tidak menemukan lokasi arena yang layak setelah "
+                    + (DEDICATED_ARENA_CENTER_OFFSETS.length + 1)
+                    + " kandidat. Alasan terakhir: " + reason
+                    + ". World sementara dibersihkan demi keamanan.");
+            return true;
+        }
+
+        int[] offset = DEDICATED_ARENA_CENTER_OFFSETS[currentAttempt];
+        Location worldSpawn = world.getSpawnLocation();
+        int nextCenterX = worldSpawn.getBlockX() + offset[0];
+        int nextCenterZ = worldSpawn.getBlockZ() + offset[1];
+        sender.sendMessage(ChatColor.YELLOW + "Lokasi arena tidak layak (" + reason
+                + "). Mencoba kandidat " + (currentAttempt + 1) + "/"
+                + DEDICATED_ARENA_CENTER_OFFSETS.length + " di "
+                + nextCenterX + ", " + nextCenterZ + ".");
+        scanAndBuildLocked(sender, name, world, nextCenterX, nextCenterZ,
+                seed, mode, currentAttempt + 1);
+        return true;
+    }
+
     void scanAndBuild(CommandSender sender, String name, World world, int centerX, int centerZ, long seed, String mode) {
         if (!buildingArenas.add(arenaTaskKey(name))) {
             sender.sendMessage(ChatColor.RED + "Arena ini sedang diproses. Tunggu hingga operasi sebelumnya selesai.");
@@ -771,8 +801,12 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                 while (cursor[0] <= radius && processed < SCAN_COLUMNS_PER_TICK) {
                     int y = TerrainScanner.findSurface(world, centerX + cursor[0], centerZ + cursor[1]);
                     if (y == Integer.MIN_VALUE) {
-                        finishScan(true);
-                        abortBeforeBuild(sender, name, "Tidak menemukan permukaan tanah yang cocok pada area ini.");
+                        finishScan(false);
+                        if (!retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                                "permukaan tanah tidak ditemukan")) {
+                            finishScan(true);
+                            abortBeforeBuild(sender, name, "Tidak menemukan permukaan tanah yang cocok pada area ini.");
+                        }
                         return;
                     }
                     heights[cursor[0] + radius][cursor[1] + radius] = y;
@@ -791,24 +825,9 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                         String structureOverlap = TerrainScanner.findIntersectingGeneratedStructure(
                                 world, centerX, centerZ, radius, limits[0], limits[1]);
                         if (structureOverlap != null) {
-                            if (locationAttempt < DEDICATED_ARENA_CENTER_OFFSETS.length) {
-                                int[] offset = DEDICATED_ARENA_CENTER_OFFSETS[locationAttempt];
-                                Location worldSpawn = world.getSpawnLocation();
-                                int nextCenterX = worldSpawn.getBlockX() + offset[0];
-                                int nextCenterZ = worldSpawn.getBlockZ() + offset[1];
-                                finishScan(false);
-                                sender.sendMessage(ChatColor.YELLOW + "Footprint calon arena bertabrakan dengan struktur vanilla ("
-                                        + structureOverlap + "). Mencoba lokasi alternatif " + (locationAttempt + 1)
-                                        + "/" + DEDICATED_ARENA_CENTER_OFFSETS.length + " di "
-                                        + nextCenterX + ", " + nextCenterZ + ".");
-                                scanAndBuildLocked(sender, name, world, nextCenterX, nextCenterZ,
-                                        seed, mode, locationAttempt + 1);
-                                return;
-                            }
-                            finishScan(true);
-                            abortBeforeBuild(sender, name, "Tidak menemukan footprint arena bebas struktur vanilla setelah "
-                                    + (DEDICATED_ARENA_CENTER_OFFSETS.length + 1)
-                                    + " lokasi diperiksa. Struktur tidak disentuh; world arena sementara dibatalkan.");
+                            finishScan(false);
+                            retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                                    "struktur vanilla " + structureOverlap);
                             return;
                         }
                     }
@@ -840,7 +859,10 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                                 : TerrainNormalizer.normalize(blended, maxAdjacentStep,
                                         SeededTerrainBlender.anchors(spawnOffset, activeTeams));
                     } catch (IllegalStateException | IllegalArgumentException ex) {
-                        abortBeforeBuild(sender, name, "Terrain tidak dapat dinormalkan dengan aman: " + ex.getMessage());
+                        if (!retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                                "normalisasi gagal: " + ex.getMessage())) {
+                            abortBeforeBuild(sender, name, "Terrain tidak dapat dinormalkan dengan aman: " + ex.getMessage());
+                        }
                         return;
                     }
 
@@ -866,8 +888,12 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                         sender.sendMessage(ChatColor.RED + "Terrain terlalu ekstrem untuk dinormalkan dengan aman: "
                                 + "perubahan per kolom perlu " + maxScannedAdjustment
                                 + " blok (batas " + maxColumnAdjustment + ").");
-                        sender.sendMessage(ChatColor.GRAY + "Atur terrain.max-column-adjustment di config.yml atau pilih area lain.");
-                        abortBeforeBuild(sender, name, null);
+                        sender.sendMessage(ChatColor.GRAY + "Batas cut/fill tetap dipertahankan; sistem akan mencoba lokasi lain.");
+                        if (!retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                                "perubahan kolom maksimum " + maxScannedAdjustment + " blok")) {
+                            sender.sendMessage(ChatColor.GRAY + "Atur terrain.max-column-adjustment di config.yml atau pilih area lain.");
+                            abortBeforeBuild(sender, name, null);
+                        }
                         return;
                     }
 
@@ -881,8 +907,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     if (!terrainReport.accepted()) {
                         sender.sendMessage(ChatColor.RED + "Terrain belum memenuhi batas kelayakan arena: "
                                 + terrainReport.rejectionReason());
-                        sender.sendMessage(ChatColor.GRAY + "Pilih lokasi lain atau tinjau batas normalisasi dengan hati-hati.");
-                        abortBeforeBuild(sender, name, null);
+                        if (!retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                                terrainReport.rejectionReason())) {
+                            sender.sendMessage(ChatColor.GRAY + "Pilih lokasi lain atau tinjau batas normalisasi dengan hati-hati.");
+                            abortBeforeBuild(sender, name, null);
+                        }
                         return;
                     }
 
@@ -894,7 +923,10 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                                 originalProfile.heightAt(spawnOffset, 0))
                             || !hasObjectiveClearanceAfterNormalization(world, centerX, profile.heightAt(0, 0),
                                 centerZ, originalProfile.heightAt(0, 0))) {
-                        abortBeforeBuild(sender, name, "Ruang spawn/objektif terhalang block entity atau struktur yang tidak aman dipindahkan.");
+                        if (!retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                                "ruang spawn atau objective terhalang")) {
+                            abortBeforeBuild(sender, name, "Ruang spawn/objektif terhalang block entity atau struktur yang tidak aman dipindahkan.");
+                        }
                         return;
                     }
 
@@ -902,10 +934,14 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     beginGeneration(sender, data, world, originalProfile, profile);
                 }
                 } catch (RuntimeException ex) {
-                    finishScan(true);
+                    finishScan(false);
                     getLogger().severe("Pemindaian arena " + name + " gagal: " + ex.getMessage());
-                    abortBeforeBuild(sender, name, "Pemindaian arena gagal. Tidak ada perubahan terrain yang diterapkan: "
-                            + ex.getMessage());
+                    if (!retryDedicatedArenaLocation(sender, name, world, seed, mode, locationAttempt,
+                            "pemindaian gagal: " + ex.getMessage())) {
+                        finishScan(true);
+                        abortBeforeBuild(sender, name, "Pemindaian arena gagal. Tidak ada perubahan terrain yang diterapkan: "
+                                + ex.getMessage());
+                    }
                 }
             }
         };
