@@ -104,9 +104,9 @@ final class TerrainDetector {
         if (spawnDifference != 0) {
             rejection.add("elevasi spawn aktif belum sama (" + spawnDifference + " blok)");
         }
-        if (routeMaxStep > 3) {
+        if (routeMaxStep > 1) {
             rejection.add("jalur spawn ke objective memiliki lonjakan " + routeMaxStep
-                    + " blok per langkah (maksimum 3)");
+                    + " blok per langkah (maksimum 1)");
         }
         if (routeSpread > 1.45D) {
             rejection.add("perkiraan beban perjalanan antartim terlalu timpang (rasio "
