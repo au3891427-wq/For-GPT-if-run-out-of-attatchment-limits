@@ -1,16 +1,24 @@
 package id.hadziq.arenasystem;
 
 import org.bukkit.Location;
+import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.Enemy;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EvokerFangs;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.NPC;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Tameable;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityCombustByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
+import org.bukkit.event.entity.PotionSplashEvent;
 
 import io.papermc.paper.event.entity.EntityMoveEvent;
 
@@ -32,6 +40,52 @@ final class MobProtectionListener implements Listener {
         if (entity.hasMetadata("NPC")) return false; // kompatibilitas NPC plugin lama seperti Citizens
         if (entity instanceof Tameable tameable && tameable.isTamed()) return false;
         return true;
+    }
+
+    /**
+     * Match membership remains authoritative when knockback or forced movement places a
+     * participant just outside the arena footprint. Limit the protection to the arena's
+     * world and an active match lifecycle so stale queue entries do not grant immunity.
+     */
+    private boolean isMatchParticipant(Player player) {
+        if (player == null) return false;
+
+        for (MatchState state : plugin.matches.values()) {
+            boolean activeLifecycle = state.running || state.preparing || state.launching || state.ending;
+            if (!activeLifecycle || !state.teams.containsKey(player.getUniqueId())) continue;
+
+            ArenaData arena = plugin.arenas.get(state.arenaName);
+            if (arena != null && arena.worldName.equals(player.getWorld().getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Resolve direct and attributed entities. DamageSource.getCausingEntity() covers
+     * mob-fired projectiles; the direct entity fallback covers projectile/fang/cloud
+     * implementations that expose only their immediate damage source.
+     */
+    private boolean isHostileDamageSource(Entity source) {
+        if (source == null) return false;
+        if (isProtectedEnemy(source)) return true;
+
+        if (source instanceof Projectile projectile
+                && projectile.getShooter() instanceof Entity shooter
+                && isProtectedEnemy(shooter)) {
+            return true;
+        }
+        if (source instanceof EvokerFangs fangs && isProtectedEnemy(fangs.getOwner())) {
+            return true;
+        }
+        return source instanceof AreaEffectCloud cloud
+                && cloud.getSource() instanceof Entity shooter
+                && isProtectedEnemy(shooter);
+    }
+
+    private boolean isHostilePotionSource(org.bukkit.projectiles.ProjectileSource source) {
+        return source instanceof Entity entity && isProtectedEnemy(entity);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
@@ -106,9 +160,67 @@ final class MobProtectionListener implements Listener {
             return;
         }
 
-        // Hostile mob di luar arena tidak boleh mengunci target pemain di dalam arena.
-        org.bukkit.entity.LivingEntity target = event.getTarget();
-        if (target != null && plugin.findArenaFootprint(target.getLocation()) != null) {
+        // Hostile mob di luar arena tidak boleh mengunci pemain yang berada di dalam
+        // footprint ATAU masih terdaftar sebagai peserta pertandingan aktif.
+        LivingEntity target = event.getTarget();
+        if (target != null && (plugin.findArenaFootprint(target.getLocation()) != null
+                || target instanceof Player player && isMatchParticipant(player))) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Last line of defence for hostile damage. This also catches Warden Sonic Boom,
+     * which does not need to pass through ordinary target acquisition.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHostileDamageToMatchParticipant(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player player) || !isMatchParticipant(player)) return;
+
+        if (event.getCause() == EntityDamageEvent.DamageCause.SONIC_BOOM) {
+            event.setCancelled(true);
+            return;
+        }
+
+        var damageSource = event.getDamageSource();
+        if (isHostileDamageSource(damageSource.getCausingEntity())
+                || isHostileDamageSource(damageSource.getDirectEntity())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Prevent hostile splash potions from applying status effects to participants,
+     * while preserving their effects on non-participants nearby.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHostilePotionSplash(PotionSplashEvent event) {
+        if (!isHostilePotionSource(event.getPotion().getShooter())) return;
+
+        for (LivingEntity affected : event.getAffectedEntities()) {
+            if (affected instanceof Player player && isMatchParticipant(player)) {
+                event.setIntensity(affected, 0.0D);
+            }
+        }
+    }
+
+    /**
+     * Lingering clouds expose a mutable affected-entity list, so only protected
+     * participants are removed from the application; other nearby entities remain affected.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHostileAreaEffectCloud(AreaEffectCloudApplyEvent event) {
+        if (!isHostilePotionSource(event.getEntity().getSource())) return;
+
+        event.getAffectedEntities().removeIf(entity ->
+                entity instanceof Player player && isMatchParticipant(player));
+    }
+
+    /** Prevent hostile fire sources from leaving a burn effect on match participants. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHostileCombustParticipant(EntityCombustByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player player) || !isMatchParticipant(player)) return;
+        if (isHostileDamageSource(event.getCombuster())) {
             event.setCancelled(true);
         }
     }
