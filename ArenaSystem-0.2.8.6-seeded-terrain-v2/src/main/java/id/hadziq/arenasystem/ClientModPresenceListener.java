@@ -170,13 +170,13 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
         if (result != Result.VERIFIED && enforcementEnabled && !bypass) {
             String kickMessage = switch (result) {
                 case NOT_REGISTERED -> ChatColor.RED
-                        + "[ArenaSystem] Companion client mod wajib belum terdeteksi.\\n"
+                        + "[ArenaSystem] Companion client mod wajib belum terdeteksi.\n"
                         + ChatColor.YELLOW + "Pasang Fabric API dan ArenaSystem Client Mod, lalu masuk kembali.";
                 case NO_RESPONSE -> ChatColor.RED
-                        + "[ArenaSystem] Verifikasi companion client mod gagal.\\n"
+                        + "[ArenaSystem] Verifikasi companion client mod gagal.\n"
                         + ChatColor.YELLOW + "Periksa versi Fabric API dan ArenaSystem Client Mod.";
                 case INCOMPATIBLE -> ChatColor.RED
-                        + "[ArenaSystem] Versi companion client mod tidak kompatibel.\\n"
+                        + "[ArenaSystem] Versi companion client mod tidak kompatibel.\n"
                         + ChatColor.YELLOW + "Perbarui ArenaSystem Client Mod agar sesuai dengan server.";
                 case VERIFIED, PENDING -> throw new IllegalStateException("Unexpected rejection result: " + result);
             };
