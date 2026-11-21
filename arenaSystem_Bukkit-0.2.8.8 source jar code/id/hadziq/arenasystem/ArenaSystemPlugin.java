@@ -3347,7 +3347,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
          selected = "assassin";
       }
 
-      for (PotionEffect effect : new ArrayList(player.getActivePotionEffects())) {
+      for (PotionEffect effect : new ArrayList<PotionEffect>(player.getActivePotionEffects())) {
          player.removePotionEffect(effect.getType());
       }
 
@@ -3714,7 +3714,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    void giveRelicRunnerLoadout(Player player, String team) {
       player.setGameMode(GameMode.SURVIVAL);
 
-      for (PotionEffect effect : new ArrayList(player.getActivePotionEffects())) {
+      for (PotionEffect effect : new ArrayList<PotionEffect>(player.getActivePotionEffects())) {
          player.removePotionEffect(effect.getType());
       }
 
@@ -4283,7 +4283,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
                this.refreshTeamMarkers(board, state);
 
-               for (String entry : new HashSet(board.getEntries())) {
+               for (String entry : new HashSet<String>(board.getEntries())) {
                   board.resetScores(entry);
                }
 
@@ -4415,7 +4415,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                   glowTeam = board.registerNewTeam("arena_relic_glow");
                }
 
-               for (String entry : new HashSet(glowTeam.getEntries())) {
+               for (String entry : new HashSet<String>(glowTeam.getEntries())) {
                   glowTeam.removeEntry(entry);
                }
 
@@ -4462,7 +4462,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
       team.setColor(color);
       team.setOption(Option.NAME_TAG_VISIBILITY, OptionStatus.ALWAYS);
 
-      for (String entry : new HashSet(team.getEntries())) {
+      for (String entry : new HashSet<String>(team.getEntries())) {
          team.removeEntry(entry);
       }
    }
