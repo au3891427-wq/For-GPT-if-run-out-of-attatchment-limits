@@ -16,6 +16,110 @@ final class TerrainDetector {
         return analyze(terrain, radius, spawnOffset, 2);
     }
 
+    /**
+     * Dedicated-world validation. Natural terrain may contain cliffs and uneven
+     * relief outside combat lanes, so only the actual spawn-to-objective corridors
+     * are constrained. Route effort is compared across active teams as a first-pass
+     * fairness check; this is not a substitute for later obstacle/pathfinding analysis.
+     */
+    static Report analyzeNatural(TerrainProfile terrain, int radius, int spawnOffset, int teamCount) {
+        int range = terrain.maxY - terrain.minY;
+        long edgeCount = 0L;
+        long totalStep = 0L;
+        int maxAdjacentStep = 0;
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                int here = terrain.heightAt(x, z);
+                if (x < radius) {
+                    int step = Math.abs(here - terrain.heightAt(x + 1, z));
+                    maxAdjacentStep = Math.max(maxAdjacentStep, step);
+                    totalStep += step;
+                    edgeCount++;
+                }
+                if (z < radius) {
+                    int step = Math.abs(here - terrain.heightAt(x, z + 1));
+                    maxAdjacentStep = Math.max(maxAdjacentStep, step);
+                    totalStep += step;
+                    edgeCount++;
+                }
+            }
+        }
+
+        int spawnLow = Integer.MAX_VALUE;
+        int spawnHigh = Integer.MIN_VALUE;
+        long routeTotalStep = 0L;
+        int routeEdges = 0;
+        int routeMaxStep = 0;
+        double minRouteCost = Double.POSITIVE_INFINITY;
+        double maxRouteCost = 0.0D;
+
+        for (int[] anchor : SeededTerrainBlender.anchors(spawnOffset, teamCount)) {
+            int startX = anchor[0];
+            int startZ = anchor[1];
+            int spawnY = terrain.heightAt(startX, startZ);
+            spawnLow = Math.min(spawnLow, spawnY);
+            spawnHigh = Math.max(spawnHigh, spawnY);
+
+            int stepX = Integer.compare(0, startX);
+            int stepZ = Integer.compare(0, startZ);
+            int currentX = startX;
+            int currentZ = startZ;
+            int previousY = spawnY;
+            int totalAscent = 0;
+            int totalDescent = 0;
+
+            while (currentX != 0 || currentZ != 0) {
+                currentX += stepX;
+                currentZ += stepZ;
+                int nextY = terrain.heightAt(currentX, currentZ);
+                int delta = nextY - previousY;
+                int absoluteStep = Math.abs(delta);
+                routeMaxStep = Math.max(routeMaxStep, absoluteStep);
+                routeTotalStep += absoluteStep;
+                routeEdges++;
+                if (delta > 0) totalAscent += delta;
+                else totalDescent -= delta;
+                previousY = nextY;
+            }
+
+            // Climbing is deliberately weighted more than descending. All routes
+            // have equal horizontal length, so terrain is the source of the delta.
+            double routeCost = spawnOffset + 1.5D * totalAscent + 0.75D * totalDescent;
+            minRouteCost = Math.min(minRouteCost, routeCost);
+            maxRouteCost = Math.max(maxRouteCost, routeCost);
+        }
+
+        int spawnDifference = spawnHigh == Integer.MIN_VALUE ? 0 : spawnHigh - spawnLow;
+        double averageStep = edgeCount == 0L ? 0.0D : (double) totalStep / edgeCount;
+        double routeAverage = routeEdges == 0 ? 0.0D : (double) routeTotalStep / routeEdges;
+        double routeSpread = minRouteCost <= 0.0D || !Double.isFinite(minRouteCost)
+                ? 1.0D : maxRouteCost / minRouteCost;
+
+        List<String> warnings = new ArrayList<>();
+        List<String> rejection = new ArrayList<>();
+        if (range > 48) rejection.add("rentang elevasi " + range + " blok (maksimum 48)");
+        else if (range > 28) warnings.add("rentang elevasi cukup besar: " + range + " blok");
+
+        if (spawnDifference != 0) {
+            rejection.add("elevasi spawn aktif belum sama (" + spawnDifference + " blok)");
+        }
+        if (routeMaxStep > 3) {
+            rejection.add("jalur spawn ke objective memiliki lonjakan " + routeMaxStep
+                    + " blok per langkah (maksimum 3)");
+        }
+        if (routeSpread > 1.45D) {
+            rejection.add("perkiraan beban perjalanan antartim terlalu timpang (rasio "
+                    + String.format(Locale.ROOT, "%.2f", routeSpread) + ", maksimum 1.45)");
+        } else if (routeSpread > 1.25D) {
+            warnings.add("perkiraan beban perjalanan antartim berbeda "
+                    + String.format(Locale.ROOT, "%.0f", (routeSpread - 1.0D) * 100.0D) + "%");
+        }
+
+        return new Report(range, maxAdjacentStep, averageStep, spawnDifference,
+                routeMaxStep, routeAverage, warnings, rejection);
+    }
+
     /** teamCount 3 adds GREEN, 4 adds GREEN and YELLOW (Z axis) to the spawn-fairness check; inactive teams are ignored. */
     static Report analyze(TerrainProfile terrain, int radius, int spawnOffset, int teamCount) {
         int range = terrain.maxY - terrain.minY;
