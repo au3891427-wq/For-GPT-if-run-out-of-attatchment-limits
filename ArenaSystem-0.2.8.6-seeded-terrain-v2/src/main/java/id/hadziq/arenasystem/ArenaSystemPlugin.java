@@ -169,6 +169,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         getConfig().addDefault("matches.keep-inventory.relic_rush", true);
         getConfig().addDefault("resource-pack.assassin-dagger.url", "");
         getConfig().addDefault("resource-pack.assassin-dagger.sha1", "c4bea426f1b8f643dd74aa5bf56588c966b6b4d2");
+        getConfig().addDefault("client-mod.required", true);
         getConfig().addDefault("updates.enabled", true);
         getConfig().addDefault("updates.check-interval-hours", 6);
         getConfig().addDefault("updates.manifest-url", "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json");
