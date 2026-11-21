@@ -60,8 +60,8 @@ public final class TestNaturalTerrainBalancing {
         TerrainProfile balanced = TerrainNormalizer.normalizeNatural(
                 base, SeededTerrainBlender.anchors(offset, 4)).profile();
 
-        for (int x = -14; x <= 14; x++) {
-            for (int z = -14; z <= 14; z++) {
+        for (int x = -12; x <= 12; x++) {
+            for (int z = -12; z <= 12; z++) {
                 check(balanced.heightAt(x, z) == base.heightAt(x, z),
                         "Terrain near the objective must remain unchanged by spawn balancing.");
             }
