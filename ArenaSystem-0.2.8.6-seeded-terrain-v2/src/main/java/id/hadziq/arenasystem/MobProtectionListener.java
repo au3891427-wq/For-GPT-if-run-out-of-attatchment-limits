@@ -67,10 +67,41 @@ final class MobProtectionListener implements Listener {
         return false;
     }
 
-    /** Pemain di footprint tetap terlindungi; peserta aktif juga terlindungi saat terdorong keluar. */
+    /**
+     * Horizontal arena bounds are used for player protection. Do not use the
+     * footprint's vertical range here: knockback or forced movement can place a
+     * participant far above/below the scanned surface while they are still over
+     * the arena.
+     */
+    private boolean isInsideArenaHorizontalBounds(Player player) {
+        if (player == null) return false;
+
+        Location location = player.getLocation();
+        String worldName = location.getWorld().getName();
+        int blockX = location.getBlockX();
+        int blockZ = location.getBlockZ();
+
+        for (ArenaData arena : plugin.arenas.values()) {
+            if (!arena.worldName.equals(worldName)) continue;
+            if (Math.abs(blockX - arena.centerX) <= arena.radius
+                    && Math.abs(blockZ - arena.centerZ) <= arena.radius) {
+                return true;
+            }
+        }
+        for (ArenaData arena : plugin.incompleteArenas.values()) {
+            if (!arena.worldName.equals(worldName)) continue;
+            if (Math.abs(blockX - arena.centerX) <= arena.radius
+                    && Math.abs(blockZ - arena.centerZ) <= arena.radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Pemain di kolom horizontal arena terlindungi; peserta aktif juga terlindungi saat keluar batas. */
     private boolean isProtectedPlayer(Player player) {
         return player != null
-                && (plugin.findArenaFootprint(player.getLocation()) != null || isMatchParticipant(player));
+                && (isInsideArenaHorizontalBounds(player) || isMatchParticipant(player));
     }
 
     /**
