@@ -34,10 +34,15 @@ final class TerrainScanner {
      * queried chunks have had their structure starts/placements materialized.
      * Structures are rejected rather than overwritten by arena terrain edits.
      */
-    static String findIntersectingGeneratedStructure(World world, int centerX, int centerZ, int radius) {
+    static String findIntersectingGeneratedStructure(World world, int centerX, int centerZ, int radius,
+                                                     int minSurfaceY, int maxSurfaceY) {
+        // Ignore deep underground structures that the arena never touches, but
+        // include likely foundations below grade and tree/building clearance above it.
+        double minY = Math.max(world.getMinHeight(), minSurfaceY - 12.0D);
+        double maxY = Math.min(world.getMaxHeight(), maxSurfaceY + 32.0D);
         BoundingBox arenaBounds = new BoundingBox(
-                centerX - radius, world.getMinHeight(), centerZ - radius,
-                centerX + radius + 1.0D, world.getMaxHeight(), centerZ + radius + 1.0D
+                centerX - radius, minY, centerZ - radius,
+                centerX + radius + 1.0D, maxY, centerZ + radius + 1.0D
         );
 
         int minChunkX = Math.floorDiv(centerX - radius, 16);
