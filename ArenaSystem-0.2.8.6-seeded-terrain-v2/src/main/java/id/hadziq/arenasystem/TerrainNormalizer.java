@@ -33,8 +33,21 @@ final class TerrainNormalizer {
      * constraint to the entire arena footprint.
      */
     static Result normalizeNatural(TerrainProfile source, List<int[]> anchors) {
+        return normalizeNatural(source, anchors, SeededTerrainBlender.PAD_HALF_SIZE);
+    }
+
+    /**
+     * Dedicated-world balancing. Natural terrain is preserved outside the spawn
+     * pads, their transition ramps, the objective pad, and the playable spawn lanes.
+     * The lane surfaces are built as gentle 1-block-per-column ramps; this keeps
+     * the direct route fair and navigable without flattening the surrounding world.
+     */
+    static Result normalizeNatural(TerrainProfile source, List<int[]> anchors, int padHalfSize) {
         if (anchors == null || anchors.isEmpty()) {
             throw new IllegalArgumentException("At least one active spawn anchor is required.");
+        }
+        if (padHalfSize < SeededTerrainBlender.PAD_HALF_SIZE || padHalfSize > 8) {
+            throw new IllegalArgumentException("padHalfSize must be between 4 and 8.");
         }
 
         int radius = source.radius();
@@ -42,17 +55,16 @@ final class TerrainNormalizer {
         int[][] original = source.copyHeights();
         int[][] normalized = source.copyHeights();
 
-        long sum = 0L;
+        long spawnSum = 0L;
         for (int[] anchor : anchors) {
             if (anchor == null || anchor.length < 2
                     || Math.abs(anchor[0]) > radius || Math.abs(anchor[1]) > radius) {
                 throw new IllegalArgumentException("Spawn anchor berada di luar area terrain.");
             }
-            sum += source.heightAt(anchor[0], anchor[1]);
+            spawnSum += source.heightAt(anchor[0], anchor[1]);
         }
-        int sharedSpawnY = (int) Math.floorDiv(sum, (long) anchors.size());
+        int sharedSpawnY = (int) Math.floorDiv(spawnSum, (long) anchors.size());
 
-        final int padHalfSize = SeededTerrainBlender.PAD_HALF_SIZE;
         final int rampDistance = 10;
         for (int x = -radius; x <= radius; x++) {
             for (int z = -radius; z <= radius; z++) {
@@ -73,6 +85,50 @@ final class TerrainNormalizer {
                 if (affected) {
                     normalized[x + radius][z + radius] = Math.max(lower,
                             Math.min(upper, original[x + radius][z + radius]));
+                }
+            }
+        }
+
+        // The objective footprint is a shared level surface so all direct lanes
+        // meet at the same elevation. Its source height is averaged over the 9x9 core.
+        long objectiveSum = 0L;
+        int objectiveColumns = 0;
+        for (int x = -4; x <= 4; x++) {
+            for (int z = -4; z <= 4; z++) {
+                objectiveSum += source.heightAt(x, z);
+                objectiveColumns++;
+            }
+        }
+        int objectiveY = (int) Math.floorDiv(objectiveSum, (long) objectiveColumns);
+        for (int x = -4; x <= 4; x++) {
+            for (int z = -4; z <= 4; z++) {
+                normalized[x + radius][z + radius] = objectiveY;
+            }
+        }
+
+        // Replace only the 5-wide direct route from each active spawn to the
+        // objective. Adjacent route columns differ by at most one block.
+        for (int[] anchor : anchors) {
+            boolean xAxis = anchor[0] != 0;
+            int coordinate = xAxis ? anchor[0] : anchor[1];
+            int direction = Integer.compare(0, coordinate);
+            int start = coordinate - direction * padHalfSize;
+            int end = direction * 4;
+            int distance = Math.abs(end - start);
+            int elevationDelta = Math.abs(objectiveY - sharedSpawnY);
+            if (distance <= 0 || elevationDelta > distance) {
+                throw new IllegalStateException("Selisih elevasi spawn-objective tidak dapat dibuat menjadi ramp "
+                        + "maksimal 1 blok per kolom (spawn=" + sharedSpawnY + ", objective=" + objectiveY
+                        + ", panjang=" + distance + ").");
+            }
+
+            for (int step = 0; step <= distance; step++) {
+                int axis = start + direction * step;
+                int y = interpolate(sharedSpawnY, objectiveY, step, distance);
+                for (int across = -2; across <= 2; across++) {
+                    int x = xAxis ? axis : across;
+                    int z = xAxis ? across : axis;
+                    normalized[x + radius][z + radius] = y;
                 }
             }
         }
@@ -109,6 +165,12 @@ final class TerrainNormalizer {
         TerrainProfile result = new TerrainProfile(radius, normalized, minY, maxY);
         double averageAdjustment = totalAdjustment / (double) (size * size);
         return new Result(result, changedColumns, maxAdjustment, averageAdjustment, maxAdjacentStep);
+    }
+
+    private static int interpolate(int startY, int endY, int step, int distance) {
+        if (step <= 0) return startY;
+        if (step >= distance) return endY;
+        return (int) Math.round(startY + (endY - startY) * (step / (double) distance));
     }
 
     /**
