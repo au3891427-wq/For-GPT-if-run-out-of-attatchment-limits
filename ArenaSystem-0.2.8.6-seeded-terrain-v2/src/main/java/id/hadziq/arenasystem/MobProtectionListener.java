@@ -4,6 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.Enemy;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.EvokerFangs;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.NPC;
@@ -45,6 +46,22 @@ final class MobProtectionListener implements Listener {
         if (entity.hasMetadata("NPC")) return false; // kompatibilitas NPC plugin lama seperti Citizens
         if (entity instanceof Tameable tameable && tameable.isTamed()) return false;
         return true;
+    }
+
+    /**
+     * Entitas yang tidak boleh spawn atau masuk ke arena. Selain hostile mob,
+     * Wandering Trader dan Trader Llama juga dikecualikan agar event trader
+     * alami tidak meninggalkan NPC/llama di medan pertandingan.
+     */
+    private boolean isArenaBlockedMob(Entity entity) {
+        if (entity == null || entity instanceof Player || entity instanceof NPC
+                || entity.hasMetadata("NPC") || isBlastMineMarker(entity)) {
+            return false;
+        }
+        EntityType type = entity.getType();
+        return isProtectedEnemy(entity)
+                || type == EntityType.WANDERING_TRADER
+                || type == EntityType.TRADER_LLAMA;
     }
 
     /**
@@ -139,7 +156,7 @@ final class MobProtectionListener implements Listener {
             event.setCancelled(false);
             return;
         }
-        if (!isProtectedEnemy(entity)) return;
+        if (!isArenaBlockedMob(entity)) return;
 
         if (plugin.findArenaFootprint(event.getLocation()) != null) {
             event.setCancelled(true);
@@ -150,7 +167,7 @@ final class MobProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMobEnterArena(EntityMoveEvent event) {
         Entity entity = event.getEntity();
-        if (!isProtectedEnemy(entity)) return;
+        if (!isArenaBlockedMob(entity)) return;
 
         Location from = event.getFrom();
         Location to = event.getTo();
@@ -168,7 +185,7 @@ final class MobProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMobTeleportIntoArena(EntityTeleportEvent event) {
         Entity entity = event.getEntity();
-        if (!isProtectedEnemy(entity)) return;
+        if (!isArenaBlockedMob(entity)) return;
 
         Location to = event.getTo();
         if (to == null) return;
@@ -184,7 +201,7 @@ final class MobProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onArenaChunkLoad(org.bukkit.event.world.ChunkLoadEvent event) {
         for (Entity entity : event.getChunk().getEntities()) {
-            if (!isProtectedEnemy(entity)) continue;
+            if (!isArenaBlockedMob(entity)) continue;
             if (plugin.findArenaFootprint(entity.getLocation()) != null) {
                 entity.remove();
             }
