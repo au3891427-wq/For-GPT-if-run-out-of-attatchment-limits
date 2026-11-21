@@ -5,9 +5,6 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.block.Action;
 import org.bukkit.Location;
 import org.bukkit.GameMode;
 import org.bukkit.ChatColor;
@@ -69,7 +66,7 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
         messenger.unregisterOutgoingPluginChannel(plugin, CHANNEL);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
