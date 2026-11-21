@@ -16,3 +16,6 @@ permissions:
   arenasystem.bypass:
     description: Bypasses break/place protection rules inside arenas.
     default: false
+  arenasystem.clientmod.bypass:
+    description: Allows joining without a verified ArenaSystem companion client mod.
+    default: op
