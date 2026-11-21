@@ -165,29 +165,18 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
         session.registrationTask = null;
         session.responseTimeoutTask = null;
 
-        switch (result) {
-            case VERIFIED -> player.sendMessage(ChatColor.GREEN
-                    + "[ArenaSystem] Companion client mod terdeteksi dan kompatibel.");
-            case NOT_REGISTERED -> player.sendMessage(ChatColor.YELLOW
-                    + "[ArenaSystem] Companion client mod belum terdeteksi. Fitur visual client mungkin tidak tersedia.");
-            case NO_RESPONSE -> player.sendMessage(ChatColor.YELLOW
-                    + "[ArenaSystem] Channel client mod ditemukan, tetapi verifikasi tidak selesai. Periksa versi mod/Fabric API.");
-            case INCOMPATIBLE -> player.sendMessage(ChatColor.RED
-                    + "[ArenaSystem] Companion client mod terdeteksi, tetapi protokolnya tidak kompatibel. Perbarui mod.");
-        }
-
         boolean enforcementEnabled = plugin.getConfig().getBoolean("client-mod.required", true);
         boolean bypass = player.hasPermission("arenasystem.clientmod.bypass");
         if (result != Result.VERIFIED && enforcementEnabled && !bypass) {
             String kickMessage = switch (result) {
                 case NOT_REGISTERED -> ChatColor.RED
-                        + "[ArenaSystem] Companion client mod wajib belum terdeteksi.\n"
+                        + "[ArenaSystem] Companion client mod wajib belum terdeteksi.\\n"
                         + ChatColor.YELLOW + "Pasang Fabric API dan ArenaSystem Client Mod, lalu masuk kembali.";
                 case NO_RESPONSE -> ChatColor.RED
-                        + "[ArenaSystem] Verifikasi companion client mod gagal.\n"
+                        + "[ArenaSystem] Verifikasi companion client mod gagal.\\n"
                         + ChatColor.YELLOW + "Periksa versi Fabric API dan ArenaSystem Client Mod.";
                 case INCOMPATIBLE -> ChatColor.RED
-                        + "[ArenaSystem] Versi companion client mod tidak kompatibel.\n"
+                        + "[ArenaSystem] Versi companion client mod tidak kompatibel.\\n"
                         + ChatColor.YELLOW + "Perbarui ArenaSystem Client Mod agar sesuai dengan server.";
                 case VERIFIED, PENDING -> throw new IllegalStateException("Unexpected rejection result: " + result);
             };
@@ -196,6 +185,23 @@ final class ClientModPresenceListener implements Listener, PluginMessageListener
                     + " ditolak: " + result + " (" + detail + ").");
             player.kickPlayer(kickMessage);
             return;
+        }
+
+        if (result == Result.VERIFIED) {
+            player.sendMessage(ChatColor.GREEN
+                    + "[ArenaSystem] Companion client mod terdeteksi dan kompatibel.");
+        } else {
+            switch (result) {
+                case NOT_REGISTERED -> player.sendMessage(ChatColor.YELLOW
+                        + "[ArenaSystem] Companion client mod belum terdeteksi.");
+                case NO_RESPONSE -> player.sendMessage(ChatColor.YELLOW
+                        + "[ArenaSystem] Verifikasi client mod tidak selesai. Periksa versi mod/Fabric API.");
+                case INCOMPATIBLE -> player.sendMessage(ChatColor.RED
+                        + "[ArenaSystem] Versi companion client mod tidak kompatibel.");
+                case VERIFIED, PENDING -> {
+                    // No action required for these states.
+                }
+            }
         }
 
         if (result != Result.VERIFIED && bypass) {
