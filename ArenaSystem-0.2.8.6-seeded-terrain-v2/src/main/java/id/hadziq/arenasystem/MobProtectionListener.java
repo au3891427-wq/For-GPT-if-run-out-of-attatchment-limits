@@ -62,6 +62,12 @@ final class MobProtectionListener implements Listener {
         return false;
     }
 
+    /** Pemain di footprint tetap terlindungi; peserta aktif juga terlindungi saat terdorong keluar. */
+    private boolean isProtectedPlayer(Player player) {
+        return player != null
+                && (plugin.findArenaFootprint(player.getLocation()) != null || isMatchParticipant(player));
+    }
+
     /**
      * Resolve direct and attributed entities. DamageSource.getCausingEntity() covers
      * mob-fired projectiles; the direct entity fallback covers projectile/fang/cloud
@@ -163,8 +169,8 @@ final class MobProtectionListener implements Listener {
         // Hostile mob di luar arena tidak boleh mengunci pemain yang berada di dalam
         // footprint ATAU masih terdaftar sebagai peserta pertandingan aktif.
         LivingEntity target = event.getTarget();
-        if (target != null && (plugin.findArenaFootprint(target.getLocation()) != null
-                || target instanceof Player player && isMatchParticipant(player))) {
+        if (target instanceof Player player && isProtectedPlayer(player)
+                || target != null && plugin.findArenaFootprint(target.getLocation()) != null) {
             event.setCancelled(true);
         }
     }
@@ -175,7 +181,7 @@ final class MobProtectionListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHostileDamageToMatchParticipant(EntityDamageEvent event) {
-        if (!(event.getEntity() instanceof Player player) || !isMatchParticipant(player)) return;
+        if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
 
         if (event.getCause() == EntityDamageEvent.DamageCause.SONIC_BOOM) {
             event.setCancelled(true);
@@ -198,7 +204,7 @@ final class MobProtectionListener implements Listener {
         if (!isHostilePotionSource(event.getPotion().getShooter())) return;
 
         for (LivingEntity affected : event.getAffectedEntities()) {
-            if (affected instanceof Player player && isMatchParticipant(player)) {
+            if (affected instanceof Player player && isProtectedPlayer(player)) {
                 event.setIntensity(affected, 0.0D);
             }
         }
@@ -213,13 +219,13 @@ final class MobProtectionListener implements Listener {
         if (!isHostilePotionSource(event.getEntity().getSource())) return;
 
         event.getAffectedEntities().removeIf(entity ->
-                entity instanceof Player player && isMatchParticipant(player));
+                entity instanceof Player player && isProtectedPlayer(player));
     }
 
     /** Prevent hostile fire sources from leaving a burn effect on match participants. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHostileCombustParticipant(EntityCombustByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player player) || !isMatchParticipant(player)) return;
+        if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
         if (isHostileDamageSource(event.getCombuster())) {
             event.setCancelled(true);
         }
