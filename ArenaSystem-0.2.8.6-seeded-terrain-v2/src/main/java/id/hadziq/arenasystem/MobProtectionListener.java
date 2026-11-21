@@ -43,9 +43,9 @@ final class MobProtectionListener implements Listener {
     }
 
     /**
-     * Match membership remains authoritative when knockback or forced movement places a
-     * participant just outside the arena footprint. Limit the protection to the arena's
-     * world and an active match lifecycle so stale queue entries do not grant immunity.
+     * Keanggotaan match tetap menjadi acuan ketika knockback atau perpindahan paksa
+     * menempatkan peserta sedikit di luar footprint. Perlindungan dibatasi ke dunia
+     * arena dan lifecycle pertandingan agar antrean lama tidak mendapat imunitas.
      */
     private boolean isMatchParticipant(Player player) {
         if (player == null) return false;
@@ -69,9 +69,9 @@ final class MobProtectionListener implements Listener {
     }
 
     /**
-     * Resolve direct and attributed entities. DamageSource.getCausingEntity() covers
-     * mob-fired projectiles; the direct entity fallback covers projectile/fang/cloud
-     * implementations that expose only their immediate damage source.
+     * Periksa entitas penyebab dan entitas yang langsung memberikan damage.
+     * DamageSource.getCausingEntity() mencakup proyektil yang ditembakkan mob;
+     * pemeriksaan entitas langsung menjadi fallback untuk projectile/fang/cloud.
      */
     private boolean isHostileDamageSource(Entity source) {
         if (source == null) return false;
@@ -169,15 +169,15 @@ final class MobProtectionListener implements Listener {
         // Hostile mob di luar arena tidak boleh mengunci pemain yang berada di dalam
         // footprint ATAU masih terdaftar sebagai peserta pertandingan aktif.
         LivingEntity target = event.getTarget();
-        if (target instanceof Player player && isProtectedPlayer(player)
-                || target != null && plugin.findArenaFootprint(target.getLocation()) != null) {
+        if ((target instanceof Player player && isProtectedPlayer(player))
+                || (target != null && plugin.findArenaFootprint(target.getLocation()) != null)) {
             event.setCancelled(true);
         }
     }
 
     /**
-     * Last line of defence for hostile damage. This also catches Warden Sonic Boom,
-     * which does not need to pass through ordinary target acquisition.
+     * Lapisan terakhir untuk damage hostile. Ini juga menangkap Sonic Boom Warden
+     * yang tidak harus melewati proses pemilihan target biasa.
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHostileDamageToMatchParticipant(EntityDamageEvent event) {
@@ -196,8 +196,8 @@ final class MobProtectionListener implements Listener {
     }
 
     /**
-     * Prevent hostile splash potions from applying status effects to participants,
-     * while preserving their effects on non-participants nearby.
+     * Cegah splash potion dari mob hostile memberikan efek kepada pemain yang dilindungi,
+     * tanpa mengganggu efek potion terhadap entitas lain di sekitarnya.
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHostilePotionSplash(PotionSplashEvent event) {
@@ -211,8 +211,8 @@ final class MobProtectionListener implements Listener {
     }
 
     /**
-     * Lingering clouds expose a mutable affected-entity list, so only protected
-     * participants are removed from the application; other nearby entities remain affected.
+     * Daftar target lingering cloud dapat diubah. Hapus hanya pemain yang dilindungi
+     * dari daftar penerima efek; entitas lain di sekitarnya tetap diproses.
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHostileAreaEffectCloud(AreaEffectCloudApplyEvent event) {
@@ -222,7 +222,7 @@ final class MobProtectionListener implements Listener {
                 entity instanceof Player player && isProtectedPlayer(player));
     }
 
-    /** Prevent hostile fire sources from leaving a burn effect on match participants. */
+    /** Cegah sumber api dari mob hostile membakar peserta pertandingan. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHostileCombustParticipant(EntityCombustByEntityEvent event) {
         if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
