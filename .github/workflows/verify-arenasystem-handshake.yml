@@ -1,4 +1,4 @@
-name: Verify ArenaSystem 0.2.8.7 Companion Handshake
+name: Verify ArenaSystem 0.2.8.8 Companion Handshake
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - ".github/workflows/verify-arenasystem-handshake.yml"
   push:
     branches:
-      - "fix/arenasystem-0.2.8.7-companion-handshake"
+      - "fix/arenasystem-0.2.8.8-companion-handshake"
     paths:
       - "ArenaSystem-0.2.8.6-seeded-terrain-v2/**"
       - ".github/workflows/verify-arenasystem-handshake.yml"
@@ -42,7 +42,7 @@ jobs:
       - name: Upload Paper plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Paper-0.2.8.7
-          path: ArenaSystem-0.2.8.6-seeded-terrain-v2/target/arenaSystem_Bukkit-0.2.8.7.jar
+          name: ArenaSystem-Paper-0.2.8.8
+          path: ArenaSystem-0.2.8.6-seeded-terrain-v2/target/arenaSystem_Bukkit-0.2.8.8.jar
           if-no-files-found: error
           retention-days: 30
