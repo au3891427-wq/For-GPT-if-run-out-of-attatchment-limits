@@ -396,7 +396,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         loadQuarantinedAreas();
         var section = getConfig().getConfigurationSection("arenas");
         Set<String> registeredArenaNames = section == null
-                ? Collections.emptySet() : new HashSet<>(section.getKeys(false));
+                ? new HashSet<>() : new HashSet<>(section.getKeys(false));
+        // Quarantined arenas deliberately retain their world and snapshot evidence.
+        // They must never be classified as orphaned during startup cleanup.
+        var quarantineSection = getConfig().getConfigurationSection("quarantined-arenas");
+        if (quarantineSection != null) registeredArenaNames.addAll(quarantineSection.getKeys(false));
         try {
             int orphanedWorlds = ArenaWorldManager.cleanupOrphanedWorlds(this, registeredArenaNames);
             if (orphanedWorlds > 0) {
