@@ -144,7 +144,7 @@ final class ArenaWorldManager {
         if (!Files.isRegularFile(markerPath)) return false;
 
         String marker = Files.readString(markerPath, StandardCharsets.UTF_8);
-        String expectedPrefix = MARKER_FORMAT + "\\n" + "arena=" + normalizeArenaName(arenaName) + "\\n";
+        String expectedPrefix = MARKER_FORMAT + "\n" + "arena=" + normalizeArenaName(arenaName) + "\n";
         if (!marker.startsWith(expectedPrefix)) {
             throw new IOException("Marker world ArenaSystem tidak cocok; world tidak dihapus.");
         }
