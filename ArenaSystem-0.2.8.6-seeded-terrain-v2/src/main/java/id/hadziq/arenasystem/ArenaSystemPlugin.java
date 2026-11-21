@@ -760,8 +760,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     int spawnOffset = mode.equals("relic_rush") ? radius - 8 : TDM_SPAWN_OFFSET;
                     // Single source of truth: arenas.<name>.team-count (what /arena team stores and ArenaGenerator reads).
                     int activeTeams = activeTeamCount(name, mode);
-                    int maxSeedDelta = Math.max(0, Math.min(SeededTerrainBlender.MAX_CONFIGURABLE_SEED_DELTA,
-                            getConfig().getInt("terrain.max-seed-delta", SeededTerrainBlender.DEFAULT_MAX_SEED_DELTA)));
+                    // Dedicated worlds already derive their natural terrain from the real Minecraft world seed.
+                    // Do not layer the old synthetic value-noise terrain on top of vanilla world generation.
+                    int maxSeedDelta = ArenaWorldManager.worldNameFor(name).equals(world.getName()) ? 0
+                            : Math.max(0, Math.min(SeededTerrainBlender.MAX_CONFIGURABLE_SEED_DELTA,
+                                    getConfig().getInt("terrain.max-seed-delta", SeededTerrainBlender.DEFAULT_MAX_SEED_DELTA)));
                     TerrainNormalizer.Result normalization;
                     try {
                         // Seed-dominant bounded blend first, then the 1-block slope normalizer on ALL active spawn anchors.
@@ -1338,6 +1341,9 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             incompleteArenas.remove(name);
             buildingArenas.remove(name);
             sender.sendMessage(ChatColor.GREEN + "Arena " + name + " dihapus dan blok yang dicatat telah dipulihkan.");
+            if (ArenaWorldManager.worldNameFor(name).equals(arena.worldName)) {
+                scheduleManagedWorldDeletion(name, arena.seed, sender, 0);
+            }
         }, ex -> {
             buildingArenas.remove(name);
             sender.sendMessage(ChatColor.RED + "Penghapusan gagal; arena tetap dikunci untuk recovery: " + ex.getMessage());
@@ -1388,6 +1394,13 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         long finalSeed = seedOverride != null ? seedOverride : old.seed;
         String targetMode = modeOverride != null ? modeOverride : old.mode;
+        if (ArenaWorldManager.worldNameFor(name).equals(old.worldName)
+                && finalSeed != old.seed) {
+            sender.sendMessage(ChatColor.RED + "Seed dedicated world tidak dapat diganti dengan regenerate biasa.");
+            sender.sendMessage(ChatColor.GRAY + "Untuk memakai seed dunia baru, hapus arena ini lalu buat ulang: /arena delete "
+                    + name + " confirm, kemudian /arena create " + name + " " + finalSeed + " " + targetMode + ".");
+            return false;
+        }
 
         buildingArenas.add(name);
         try {
