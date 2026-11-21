@@ -19,9 +19,8 @@ public final class TestNaturalTerrainBalancing {
         int max = Integer.MIN_VALUE;
         for (int x = -radius; x <= radius; x++) {
             for (int z = -radius; z <= radius; z++) {
-                int y = (int) Math.round(72
-                        + 7.0 * Math.sin(x / 10.0) * Math.cos(z / 12.0)
-                        + 2.0 * Math.sin((x + z) / 7.0));
+                double distance = Math.sqrt(x * (double) x + z * (double) z);
+                int y = (int) Math.round(72 + 10.0 * Math.sin(distance / 8.0));
                 heights[x + radius][z + radius] = y;
                 min = Math.min(min, y);
                 max = Math.max(max, y);
