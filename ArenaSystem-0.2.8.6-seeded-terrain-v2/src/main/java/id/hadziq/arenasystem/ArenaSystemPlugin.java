@@ -619,8 +619,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         int span = radius * 2 + 1;
         player.sendMessage(ChatColor.GREEN + "Memindai kontur medan " + span + "x" + span + " untuk mode "
                 + mode.toUpperCase(Locale.ROOT) + ". Bentuk arena akan dibuat khusus untuk mode ini...");
-        player.sendMessage(ChatColor.GRAY + "Seed layout: " + seed
-                + " | simpan angka ini untuk mereproduksi variasi struktur pada lokasi yang sama.");
+        player.sendMessage(ChatColor.GRAY + "Seed terrain + layout: " + seed
+                + " | simpan angka ini untuk mereproduksi kontur terrain dan variasi struktur pada lokasi yang sama.");
         scanAndBuild(player, name, world, centerX, centerZ, seed, mode);
     }
 
@@ -1310,8 +1310,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
         }
         incompleteArenas.put(name, old);
         arenas.remove(name);
-        sender.sendMessage(ChatColor.GRAY + "Seed layout regenerate: " + finalSeed
-                + " | gunakan seed lain untuk variasi struktur yang berbeda.");
+        sender.sendMessage(ChatColor.GRAY + "Seed terrain + layout regenerate: " + finalSeed
+                + " | seed berbeda mengubah kontur terrain dan variasi struktur.");
 
         stopAndRestoreMatch(name, () -> restoreArenaSnapshot(sender, old, false, () -> {
             World world = Bukkit.getWorld(old.worldName);
@@ -3940,7 +3940,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
     void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.6" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
-        sender.sendMessage(ChatColor.YELLOW + "/arena create <nama> [seed] [tdm|relic_rush] " + ChatColor.GRAY + "- seed menentukan variasi jalur dan cover");
+        sender.sendMessage(ChatColor.YELLOW + "/arena create <nama> [seed] [tdm|relic_rush] " + ChatColor.GRAY + "- seed menentukan kontur terrain, variasi jalur, dan cover");
         sender.sendMessage(ChatColor.YELLOW + "/arena list | info <nama> | tp <nama> <red|blue|green|yellow|center>");
         sender.sendMessage(ChatColor.YELLOW + "/arena delete <nama> confirm | regenerate <nama> [seed] | recover <nama> [discard confirm]");
         sender.sendMessage(ChatColor.YELLOW + "/arena quarantine list | release <nama> confirm " + ChatColor.GRAY + "- area dari recover discard");
