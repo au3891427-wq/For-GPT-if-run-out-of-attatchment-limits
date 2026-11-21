@@ -16,8 +16,12 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityCombustByEntityEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
+import org.bukkit.potion.PotionEffectType;
+
+import io.papermc.paper.event.entity.EntityEffectTickEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 
@@ -177,10 +181,22 @@ final class MobProtectionListener implements Listener {
     }
 
     /**
+     * Primary entity-damage path. Read the direct damager so melee hits and
+     * projectiles are not dependent solely on DamageSource attribution.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onHostileEntityDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
+        if (isHostileDamageSource(event.getDamager())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
      * Lapisan terakhir untuk damage hostile. Ini juga menangkap Sonic Boom Warden
      * yang tidak harus melewati proses pemilihan target biasa.
      */
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onHostileDamageToMatchParticipant(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
 
@@ -197,17 +213,35 @@ final class MobProtectionListener implements Listener {
     }
 
     /**
-     * Efek yang timbul langsung dari serangan mob (contoh: poison cave spider/shulker)
-     * dan efek khusus Warden tidak selalu melewati event damage. Batalkan hanya sebab
-     * ATTACK dan WARDEN agar efek dari pemain/skill/plugin tetap berjalan.
+     * Warden memberi efek DARKNESS ketika mendeteksi pemain (misalnya melalui
+     * getaran langkah kaki). Batalkan berdasarkan tipe efek, bukan hanya cause,
+     * karena efek darkness juga dapat berasal dari sculk shrieker.
+     * Efek ATTACK mencakup debuff langsung seperti poison cave spider/shulker.
      */
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onHostileAttackPotionEffect(EntityPotionEffectEvent event) {
         if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
 
         EntityPotionEffectEvent.Cause cause = event.getCause();
-        if (cause == EntityPotionEffectEvent.Cause.ATTACK
+        boolean darkness = PotionEffectType.DARKNESS.equals(event.getModifiedType());
+        boolean wardenBlindness = cause == EntityPotionEffectEvent.Cause.WARDEN
+                && PotionEffectType.BLINDNESS.equals(event.getModifiedType());
+
+        if (darkness || wardenBlindness
+                || cause == EntityPotionEffectEvent.Cause.ATTACK
                 || cause == EntityPotionEffectEvent.Cause.WARDEN) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Fallback for effect-tick paths. Only suppress Darkness on protected arena
+     * players; do not affect any other potion effect or player ability.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onProtectedPlayerDarknessTick(EntityEffectTickEvent event) {
+        if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
+        if (PotionEffectType.DARKNESS.equals(event.getType())) {
             event.setCancelled(true);
         }
     }
