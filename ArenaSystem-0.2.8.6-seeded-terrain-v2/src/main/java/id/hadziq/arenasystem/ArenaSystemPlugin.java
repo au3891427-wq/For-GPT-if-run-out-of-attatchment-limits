@@ -777,6 +777,16 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                 }
                 if (cursor[0] > radius) {
                     finishScan(false);
+                    if (ArenaWorldManager.isManagedWorld(name, world.getName())) {
+                        String structureOverlap = TerrainScanner.findIntersectingGeneratedStructure(
+                                world, centerX, centerZ, radius);
+                        if (structureOverlap != null) {
+                            finishScan(true);
+                            abortBeforeBuild(sender, name, "Area calon arena bertabrakan dengan struktur vanilla: "
+                                    + structureOverlap + ". Struktur tidak disentuh; world arena sementara dibatalkan.");
+                            return;
+                        }
+                    }
                     TerrainProfile originalProfile = new TerrainProfile(radius, heights, limits[0], limits[1]);
                     int maxAdjacentStep = 1;
                     // Relic Rush spawn offset tracks the sanctum position built by ArenaGenerator (radius - 8).
