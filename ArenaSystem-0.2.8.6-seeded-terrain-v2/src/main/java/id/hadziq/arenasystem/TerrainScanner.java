@@ -4,6 +4,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.TileState;
+import org.bukkit.util.BoundingBox;
 
 final class TerrainScanner {
     private TerrainScanner() {
@@ -25,6 +26,37 @@ final class TerrainScanner {
             }
         }
         return new TerrainProfile(radius, heights, minY, maxY);
+    }
+
+    /**
+     * Returns a description when a vanilla-generated structure intersects the
+     * arena footprint. The caller must scan/generate the footprint first so the
+     * queried chunks have had their structure starts/placements materialized.
+     * Structures are rejected rather than overwritten by arena terrain edits.
+     */
+    static String findIntersectingGeneratedStructure(World world, int centerX, int centerZ, int radius) {
+        BoundingBox arenaBounds = new BoundingBox(
+                centerX - radius, world.getMinHeight(), centerZ - radius,
+                centerX + radius + 1.0D, world.getMaxHeight(), centerZ + radius + 1.0D
+        );
+
+        int minChunkX = Math.floorDiv(centerX - radius, 16);
+        int maxChunkX = Math.floorDiv(centerX + radius, 16);
+        int minChunkZ = Math.floorDiv(centerZ - radius, 16);
+        int maxChunkZ = Math.floorDiv(centerZ + radius, 16);
+
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                for (var structure : world.getStructures(chunkX, chunkZ)) {
+                    BoundingBox structureBounds = structure.getBoundingBox();
+                    if (structureBounds.overlaps(arenaBounds)) {
+                        return structure.getStructure().getStructureType()
+                                + " @ " + structureBounds;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     static int findSurface(World world, int x, int z) {
