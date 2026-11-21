@@ -118,6 +118,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
     static final int TDM_TARGET_SCORE = 20;
     static final int RELIC_TARGET_SCORE = 3;
     static final int TDM_SPAWN_OFFSET = 27;
+    /** Deterministic fallback centers used only when the world-spawn footprint intersects a vanilla structure. */
+    private static final int[][] DEDICATED_ARENA_CENTER_OFFSETS = {
+            {128, 0}, {-128, 0}, {0, 128}, {0, -128},
+            {128, 128}, {-128, 128}, {128, -128}, {-128, -128}
+    };
     private static final UUID ASSASSIN_DAGGER_RESOURCE_PACK_ID =
             UUID.fromString("2efb65ad-5f8a-4c26-a8b4-2f4d84c98d26");
 
@@ -741,6 +746,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
     private void scanAndBuildLocked(CommandSender sender, String name, World world,
                                     int centerX, int centerZ, long seed, String mode) {
+        scanAndBuildLocked(sender, name, world, centerX, centerZ, seed, mode, 0);
+    }
+
+    private void scanAndBuildLocked(CommandSender sender, String name, World world,
+                                    int centerX, int centerZ, long seed, String mode, int locationAttempt) {
         int radius = radiusForMode(mode);
         int size = radius * 2 + 1;
         int[][] heights = new int[size][size];
@@ -779,11 +789,26 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                     finishScan(false);
                     if (ArenaWorldManager.isManagedWorld(name, world.getName())) {
                         String structureOverlap = TerrainScanner.findIntersectingGeneratedStructure(
-                                world, centerX, centerZ, radius);
+                                world, centerX, centerZ, radius, limits[0], limits[1]);
                         if (structureOverlap != null) {
+                            if (locationAttempt < DEDICATED_ARENA_CENTER_OFFSETS.length) {
+                                int[] offset = DEDICATED_ARENA_CENTER_OFFSETS[locationAttempt];
+                                Location worldSpawn = world.getSpawnLocation();
+                                int nextCenterX = worldSpawn.getBlockX() + offset[0];
+                                int nextCenterZ = worldSpawn.getBlockZ() + offset[1];
+                                finishScan(false);
+                                sender.sendMessage(ChatColor.YELLOW + "Footprint calon arena bertabrakan dengan struktur vanilla ("
+                                        + structureOverlap + "). Mencoba lokasi alternatif " + (locationAttempt + 1)
+                                        + "/" + DEDICATED_ARENA_CENTER_OFFSETS.length + " di "
+                                        + nextCenterX + ", " + nextCenterZ + ".");
+                                scanAndBuildLocked(sender, name, world, nextCenterX, nextCenterZ,
+                                        seed, mode, locationAttempt + 1);
+                                return;
+                            }
                             finishScan(true);
-                            abortBeforeBuild(sender, name, "Area calon arena bertabrakan dengan struktur vanilla: "
-                                    + structureOverlap + ". Struktur tidak disentuh; world arena sementara dibatalkan.");
+                            abortBeforeBuild(sender, name, "Tidak menemukan footprint arena bebas struktur vanilla setelah "
+                                    + (DEDICATED_ARENA_CENTER_OFFSETS.length + 1)
+                                    + " lokasi diperiksa. Struktur tidak disentuh; world arena sementara dibatalkan.");
                             return;
                         }
                     }
