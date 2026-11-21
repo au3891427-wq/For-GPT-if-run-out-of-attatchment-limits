@@ -6,7 +6,7 @@
 
     <groupId>id.hadziq</groupId>
     <artifactId>arena-system</artifactId>
-    <version>0.2.8.6</version>
+    <version>0.2.8.9</version>
     <packaging>jar</packaging>
 
     <name>ArenaSystem</name>
@@ -35,6 +35,18 @@
 
     <build>
         <finalName>arenaSystem_Bukkit-${project.version}</finalName>
+
+        <sourceDirectory>${project.basedir}/arenaSystem_Bukkit-0.2.8.8 source jar code</sourceDirectory>
+        <resources>
+            <resource>
+                <directory>${project.basedir}/arenaSystem_Bukkit-0.2.8.8 source jar code</directory>
+                <includes>
+                    <include>plugin.yml</include>
+                    <include>config.yml</include>
+                </includes>
+            </resource>
+        </resources>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
