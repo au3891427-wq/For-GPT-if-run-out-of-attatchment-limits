@@ -295,7 +295,11 @@ final class MobProtectionListener implements Listener {
         boolean wardenBlindness = cause == EntityPotionEffectEvent.Cause.WARDEN
                 && PotionEffectType.BLINDNESS.equals(event.getModifiedType());
 
-        if (darkness || wardenBlindness
+        // Gunakan atribusi sumber juga: efek dari tipped arrow, splash potion,
+        // atau lingering cloud tidak selalu memakai Cause.ATTACK/WARDEN.
+        boolean hostileSource = isHostileDamageSource(event.getSource());
+
+        if (darkness || wardenBlindness || hostileSource
                 || cause == EntityPotionEffectEvent.Cause.ATTACK
                 || cause == EntityPotionEffectEvent.Cause.WARDEN) {
             event.setCancelled(true);
