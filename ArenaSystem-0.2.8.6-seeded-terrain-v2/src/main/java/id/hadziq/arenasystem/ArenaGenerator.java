@@ -125,7 +125,9 @@ final class ArenaGenerator {
                 addSurface(world, arena, terrain, edits, x, z, path);
             }
         }
-        for (int z = -19; z <= 19; z++) {
+        int crossLaneMinZ = teamCount >= 3 ? -27 : -19;
+        int crossLaneMaxZ = teamCount >= 4 ? 27 : 19;
+        for (int z = crossLaneMinZ; z <= crossLaneMaxZ; z++) {
             for (int x = -2; x <= 2; x++) {
                 addSurface(world, arena, terrain, edits, x, z,
                         Math.abs(x) == 2 ? Material.MOSSY_COBBLESTONE : Material.COBBLESTONE);
