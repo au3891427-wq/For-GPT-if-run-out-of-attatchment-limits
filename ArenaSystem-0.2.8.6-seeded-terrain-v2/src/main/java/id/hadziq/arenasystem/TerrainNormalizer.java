@@ -34,7 +34,11 @@ final class TerrainNormalizer {
      * constraint to the entire arena footprint.
      */
     static Result normalizeNatural(TerrainProfile source, List<int[]> anchors) {
-        return normalizeNatural(source, anchors, SeededTerrainBlender.PAD_HALF_SIZE);
+        return normalizeNatural(source, anchors, SeededTerrainBlender.PAD_HALF_SIZE, 4);
+    }
+
+    static Result normalizeNatural(TerrainProfile source, List<int[]> anchors, int padHalfSize) {
+        return normalizeNatural(source, anchors, padHalfSize, 4);
     }
 
     /**
@@ -43,12 +47,16 @@ final class TerrainNormalizer {
      * The lane surfaces are built as gentle 1-block-per-column ramps; this keeps
      * the direct route fair and navigable without flattening the surrounding world.
      */
-    static Result normalizeNatural(TerrainProfile source, List<int[]> anchors, int padHalfSize) {
+    static Result normalizeNatural(TerrainProfile source, List<int[]> anchors,
+                                   int padHalfSize, int objectiveHalfSize) {
         if (anchors == null || anchors.isEmpty()) {
             throw new IllegalArgumentException("At least one active spawn anchor is required.");
         }
         if (padHalfSize < SeededTerrainBlender.PAD_HALF_SIZE || padHalfSize > 8) {
             throw new IllegalArgumentException("padHalfSize must be between 4 and 8.");
+        }
+        if (objectiveHalfSize < 4 || objectiveHalfSize > 8) {
+            throw new IllegalArgumentException("objectiveHalfSize must be between 4 and 8.");
         }
 
         int radius = source.radius();
@@ -91,18 +99,18 @@ final class TerrainNormalizer {
         }
 
         // The objective footprint is a shared level surface so all direct lanes
-        // meet at the same elevation. Its source height is averaged over the 9x9 core.
+        // meet at the same elevation (9x9 TDM core, 13x13 Relic shrine).
         long objectiveSum = 0L;
         int objectiveColumns = 0;
-        for (int x = -4; x <= 4; x++) {
-            for (int z = -4; z <= 4; z++) {
+        for (int x = -objectiveHalfSize; x <= objectiveHalfSize; x++) {
+            for (int z = -objectiveHalfSize; z <= objectiveHalfSize; z++) {
                 objectiveSum += source.heightAt(x, z);
                 objectiveColumns++;
             }
         }
         int objectiveY = (int) Math.floorDiv(objectiveSum, (long) objectiveColumns);
-        for (int x = -4; x <= 4; x++) {
-            for (int z = -4; z <= 4; z++) {
+        for (int x = -objectiveHalfSize; x <= objectiveHalfSize; x++) {
+            for (int z = -objectiveHalfSize; z <= objectiveHalfSize; z++) {
                 normalized[x + radius][z + radius] = objectiveY;
             }
         }
@@ -114,7 +122,7 @@ final class TerrainNormalizer {
             int coordinate = xAxis ? anchor[0] : anchor[1];
             int direction = Integer.compare(0, coordinate);
             int start = coordinate + direction * padHalfSize;
-            int end = -direction * 4;
+            int end = -direction * objectiveHalfSize;
             int distance = Math.abs(end - start);
             int elevationDelta = Math.abs(objectiveY - sharedSpawnY);
             if (distance <= 0 || elevationDelta > distance) {
