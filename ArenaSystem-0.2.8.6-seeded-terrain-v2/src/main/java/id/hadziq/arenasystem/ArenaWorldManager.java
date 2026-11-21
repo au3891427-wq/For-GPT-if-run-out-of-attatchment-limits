@@ -43,6 +43,12 @@ final class ArenaWorldManager {
         return ARENA_NAME.matcher(arenaName).matches();
     }
 
+    static boolean isManagedWorld(String arenaName, String worldName) {
+        if (worldName == null || arenaName == null) return false;
+        String normalized = arenaName.toLowerCase(Locale.ROOT);
+        return ARENA_NAME.matcher(normalized).matches() && worldName.equals(WORLD_PREFIX + normalized);
+    }
+
     /**
      * Creates a brand-new NORMAL world using vanilla generation and structures.
      * Existing folders are rejected: a new arena must never silently reuse a
