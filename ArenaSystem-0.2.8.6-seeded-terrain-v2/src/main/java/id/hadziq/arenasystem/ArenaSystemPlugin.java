@@ -607,11 +607,13 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             }
         }
 
+        final long worldSeed = seed;
+        final String arenaMode = mode;
         player.sendMessage(ChatColor.GREEN + "Menyiapkan dedicated world vanilla untuk arena " + name + "...");
-        player.sendMessage(ChatColor.GRAY + "World seed: " + seed + " | mode: " + mode.toUpperCase(Locale.ROOT));
+        player.sendMessage(ChatColor.GRAY + "World seed: " + worldSeed + " | mode: " + arenaMode.toUpperCase(Locale.ROOT));
         // World creation/loading must happen outside Paper's world-ticking phase.
         Bukkit.getScheduler().runTaskLater(this,
-                () -> createDedicatedArenaWorld(player, name, seed, mode, 0), 1L);
+                () -> createDedicatedArenaWorld(player, name, worldSeed, arenaMode, 0), 1L);
     }
 
     private void createDedicatedArenaWorld(Player player, String arenaName, long seed, String mode, int attempts) {
