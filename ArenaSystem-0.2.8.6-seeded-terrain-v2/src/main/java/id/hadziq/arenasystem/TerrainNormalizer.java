@@ -53,7 +53,7 @@ final class TerrainNormalizer {
         int sharedSpawnY = (int) Math.floorDiv(sum, (long) anchors.size());
 
         final int padHalfSize = SeededTerrainBlender.PAD_HALF_SIZE;
-        final int rampDistance = 8;
+        final int rampDistance = 10;
         for (int x = -radius; x <= radius; x++) {
             for (int z = -radius; z <= radius; z++) {
                 int lower = Integer.MIN_VALUE;
