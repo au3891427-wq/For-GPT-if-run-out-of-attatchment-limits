@@ -130,6 +130,39 @@ final class ArenaWorldManager {
         return true;
     }
 
+    /**
+     * Removes a newly-created world when generation fails before ArenaData is
+     * persisted. The marker supplies the seed, but its arena identity and format
+     * are still validated before any directory is deleted.
+     */
+    static boolean deleteUnregisteredWorld(JavaPlugin plugin, String arenaName) throws IOException {
+        requireSafeLifecycleThread();
+
+        String worldName = worldNameFor(arenaName);
+        Path folder = worldFolder(plugin, worldName);
+        Path markerPath = folder.resolve(MARKER_FILE);
+        if (!Files.isRegularFile(markerPath)) return false;
+
+        String marker = Files.readString(markerPath, StandardCharsets.UTF_8);
+        String expectedPrefix = MARKER_FORMAT + "\\n" + "arena=" + normalizeArenaName(arenaName) + "\\n";
+        if (!marker.startsWith(expectedPrefix)) {
+            throw new IOException("Marker world ArenaSystem tidak cocok; world tidak dihapus.");
+        }
+
+        String seedLine = marker.substring(expectedPrefix.length()).trim();
+        if (!seedLine.startsWith("seed=")) {
+            throw new IOException("Marker world ArenaSystem rusak; world tidak dihapus.");
+        }
+
+        final long seed;
+        try {
+            seed = Long.parseLong(seedLine.substring("seed=".length()));
+        } catch (NumberFormatException ex) {
+            throw new IOException("Seed pada marker world ArenaSystem tidak valid.", ex);
+        }
+        return deleteManagedWorld(plugin, arenaName, seed);
+    }
+
     private static WorldCreator vanillaCreator(String worldName, long seed) {
         return new WorldCreator(worldName)
                 .seed(seed)
