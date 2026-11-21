@@ -53,8 +53,9 @@ final class ArenaGenerator {
         int radius = arena.radius;
         int size = radius * 2 + 1;
         boolean[][] columns = new boolean[size][size];
-
-        markRect(columns, radius, -4, 4, -4, 4); // objective footprint
+        int objectiveHalfSize = "relic_rush".equalsIgnoreCase(arena.mode) ? 6 : 4;
+        markRect(columns, radius, -objectiveHalfSize, objectiveHalfSize,
+                -objectiveHalfSize, objectiveHalfSize);
 
         if ("relic_rush".equalsIgnoreCase(arena.mode)) {
             double scale = radius / 40.0D;
