@@ -27,6 +27,91 @@ final class TerrainNormalizer {
     }
 
     /**
+     * Dedicated-world variant: preserve the vanilla heightmap everywhere except
+     * active spawn pads and a short local ramp around each pad. This keeps hills,
+     * valleys and rivers intact instead of applying the legacy one-block slope
+     * constraint to the entire arena footprint.
+     */
+    static Result normalizeNatural(TerrainProfile source, List<int[]> anchors) {
+        if (anchors == null || anchors.isEmpty()) {
+            throw new IllegalArgumentException("At least one active spawn anchor is required.");
+        }
+
+        int radius = source.radius();
+        int size = radius * 2 + 1;
+        int[][] original = source.copyHeights();
+        int[][] normalized = source.copyHeights();
+
+        long sum = 0L;
+        for (int[] anchor : anchors) {
+            if (anchor == null || anchor.length < 2
+                    || Math.abs(anchor[0]) > radius || Math.abs(anchor[1]) > radius) {
+                throw new IllegalArgumentException("Spawn anchor berada di luar area terrain.");
+            }
+            sum += source.heightAt(anchor[0], anchor[1]);
+        }
+        int sharedSpawnY = (int) Math.floorDiv(sum, (long) anchors.size());
+
+        final int padHalfSize = SeededTerrainBlender.PAD_HALF_SIZE;
+        final int rampDistance = 8;
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                int lower = Integer.MIN_VALUE;
+                int upper = Integer.MAX_VALUE;
+                boolean affected = false;
+
+                for (int[] anchor : anchors) {
+                    int distance = Math.max(0, Math.abs(x - anchor[0]) - padHalfSize)
+                            + Math.max(0, Math.abs(z - anchor[1]) - padHalfSize);
+                    if (distance > rampDistance) continue;
+
+                    affected = true;
+                    lower = Math.max(lower, sharedSpawnY - distance);
+                    upper = Math.min(upper, sharedSpawnY + distance);
+                }
+
+                if (affected) {
+                    normalized[x + radius][z + radius] = Math.max(lower,
+                            Math.min(upper, original[x + radius][z + radius]));
+                }
+            }
+        }
+
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        int changedColumns = 0;
+        int maxAdjustment = 0;
+        long totalAdjustment = 0L;
+        int maxAdjacentStep = 0;
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                int target = normalized[x + radius][z + radius];
+                minY = Math.min(minY, target);
+                maxY = Math.max(maxY, target);
+
+                int adjustment = Math.abs(target - original[x + radius][z + radius]);
+                if (adjustment > 0) changedColumns++;
+                maxAdjustment = Math.max(maxAdjustment, adjustment);
+                totalAdjustment += adjustment;
+
+                if (x < radius) {
+                    maxAdjacentStep = Math.max(maxAdjacentStep,
+                            Math.abs(target - normalized[x + radius + 1][z + radius]));
+                }
+                if (z < radius) {
+                    maxAdjacentStep = Math.max(maxAdjacentStep,
+                            Math.abs(target - normalized[x + radius][z + radius + 1]));
+                }
+            }
+        }
+
+        TerrainProfile result = new TerrainProfile(radius, normalized, minY, maxY);
+        double averageAdjustment = totalAdjustment / (double) (size * size);
+        return new Result(result, changedColumns, maxAdjustment, averageAdjustment, maxAdjacentStep);
+    }
+
+    /**
      * Same as above for any set of relative spawn anchors (RED/BLUE, plus GREEN/YELLOW in 3-4 team
      * TDM): every 9x9 pad is leveled to one shared elevation and the terrain slopes away from all of them.
      */
