@@ -49,10 +49,8 @@ final class ArenaGenerator {
      * canopy only around gameplay routes, spawn pads, objectives and major cover
      * sites. Natural vegetation elsewhere in the arena footprint is preserved.
      */
-    private static void queueNaturalCombatCleanup(World world, ArenaData arena,
-                                                  TerrainProfile terrain,
-                                                  Map<BlockPos, BlockEdit> edits,
-                                                  long seed, int radius, int teamCount) {
+    static boolean[][] naturalCombatCleanupMask(ArenaData arena, long seed, int teamCount) {
+        int radius = arena.radius;
         int size = radius * 2 + 1;
         boolean[][] columns = new boolean[size][size];
 
@@ -67,21 +65,18 @@ final class ArenaGenerator {
             int laneHalfWidth = Math.max(2, (int) Math.round(2 * scale));
             int sanctumOffset = radius - 8;
 
-            // Main lane and the two side lanes, including a small canopy-clearance buffer.
             markRect(columns, radius, -laneEnd, laneEnd, -laneHalfWidth - 2, laneHalfWidth + 2);
             for (int side : new int[]{-sideLaneOffset, sideLaneOffset}) {
                 markRect(columns, radius, -laneEnd, laneEnd,
                         side - laneHalfWidth - 2, side + laneHalfWidth + 2);
             }
 
-            // Cross-lanes and their structural intersections.
             int[] crossLanes = {-crossLaneOuter, -crossLaneInner, 0, crossLaneInner, crossLaneOuter};
             for (int crossX : crossLanes) {
                 markRect(columns, radius, crossX - 3, crossX + 3,
                         -sideLaneOffset, sideLaneOffset);
             }
 
-            // Team sanctums and outpost groups.
             markRect(columns, radius, -sanctumOffset - 6, -sanctumOffset + 6, -6, 6);
             markRect(columns, radius, sanctumOffset - 6, sanctumOffset + 6, -6, 6);
 
@@ -113,17 +108,11 @@ final class ArenaGenerator {
 
             markRect(columns, radius, -spawnOffset, spawnOffset, -4, 4);
             markRect(columns, radius, -4, 4, crossLaneMinZ - 2, crossLaneMaxZ + 2);
-
             markRect(columns, radius, -spawnOffset - 4, -spawnOffset + 4, -4, 4);
             markRect(columns, radius, spawnOffset - 4, spawnOffset + 4, -4, 4);
-            if (teamCount >= 3) {
-                markRect(columns, radius, -4, 4, -31, -23);
-            }
-            if (teamCount >= 4) {
-                markRect(columns, radius, -4, 4, 23, 31);
-            }
+            if (teamCount >= 3) markRect(columns, radius, -4, 4, -31, -23);
+            if (teamCount >= 4) markRect(columns, radius, -4, 4, 23, 31);
 
-            // Fixed ruins and seed-selected cover sites.
             for (int x : new int[]{-15, 15}) {
                 for (int z : new int[]{-15, 15}) {
                     markRect(columns, radius, x - 3, x + 3, z - 3, z + 3);
@@ -133,7 +122,14 @@ final class ArenaGenerator {
                 markMirroredRect(columns, radius, site.x(), site.z(), 3);
             }
         }
+        return columns;
+    }
 
+    private static void queueNaturalCombatCleanup(World world, ArenaData arena,
+                                                  TerrainProfile terrain,
+                                                  Map<BlockPos, BlockEdit> edits,
+                                                  long seed, int radius, int teamCount) {
+        boolean[][] columns = naturalCombatCleanupMask(arena, seed, teamCount);
         for (int x = -radius; x <= radius; x++) {
             for (int z = -radius; z <= radius; z++) {
                 if (!columns[x + radius][z + radius]) continue;
@@ -178,7 +174,7 @@ final class ArenaGenerator {
         }
     }
 
-    private static boolean isTreePart(Material material) {
+    static boolean isTreePart(Material material) {
         String name = material.name();
         return name.endsWith("_LEAVES") || name.endsWith("_LOG") || name.endsWith("_WOOD")
                 || name.endsWith("_STEM") || name.endsWith("_HYPHAE")
