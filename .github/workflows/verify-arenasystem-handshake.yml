@@ -1,0 +1,40 @@
+name: Verify ArenaSystem 0.2.8.7 Companion Handshake
+
+on:
+  pull_request:
+    paths:
+      - "ArenaSystem-0.2.8.6-seeded-terrain-v2/**"
+      - ".github/workflows/verify-arenasystem-handshake.yml"
+  push:
+    branches:
+      - "fix/arenasystem-0.2.8.7-companion-handshake"
+    paths:
+      - "ArenaSystem-0.2.8.6-seeded-terrain-v2/**"
+      - ".github/workflows/verify-arenasystem-handshake.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Build Paper plugin against Paper API 26.3
+        working-directory: ArenaSystem-0.2.8.6-seeded-terrain-v2
+        run: mvn --batch-mode --no-transfer-progress clean verify
+
+      - name: Run companion handshake protocol tests
+        working-directory: ArenaSystem-0.2.8.6-seeded-terrain-v2
+        run: |
+          mkdir -p target/test-classes
+          javac --release 25 -cp target/classes -d target/test-classes tools/TestCompanionHandshakeProtocol.java
+          java -ea -cp target/classes:target/test-classes id.hadziq.arenasystem.TestCompanionHandshakeProtocol
