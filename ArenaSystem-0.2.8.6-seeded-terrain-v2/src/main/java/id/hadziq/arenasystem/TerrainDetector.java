@@ -6,8 +6,9 @@ import java.util.Locale;
 
 /**
  * Evaluates an already-scanned height map for arena suitability. It does not
- * modify the world. The final surface must never exceed one block of vertical
- * difference between horizontally adjacent columns.
+ * modify the world. Legacy arenas require a one-block step across the whole
+ * footprint; dedicated vanilla worlds preserve natural relief and constrain
+ * only the playable spawn-to-objective routes.
  */
 final class TerrainDetector {
     private TerrainDetector() { }
