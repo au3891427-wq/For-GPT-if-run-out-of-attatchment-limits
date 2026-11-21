@@ -17,6 +17,7 @@ import org.bukkit.event.entity.AreaEffectCloudApplyEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityCombustByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 
@@ -191,6 +192,22 @@ final class MobProtectionListener implements Listener {
         var damageSource = event.getDamageSource();
         if (isHostileDamageSource(damageSource.getCausingEntity())
                 || isHostileDamageSource(damageSource.getDirectEntity())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Efek yang timbul langsung dari serangan mob (contoh: poison cave spider/shulker)
+     * dan efek khusus Warden tidak selalu melewati event damage. Batalkan hanya sebab
+     * ATTACK dan WARDEN agar efek dari pemain/skill/plugin tetap berjalan.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onHostileAttackPotionEffect(EntityPotionEffectEvent event) {
+        if (!(event.getEntity() instanceof Player player) || !isProtectedPlayer(player)) return;
+
+        EntityPotionEffectEvent.Cause cause = event.getCause();
+        if (cause == EntityPotionEffectEvent.Cause.ATTACK
+                || cause == EntityPotionEffectEvent.Cause.WARDEN) {
             event.setCancelled(true);
         }
     }
