@@ -4384,7 +4384,6 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                   row++;
                   rowNames.setLength(0);
                   prefix = "↳ ";
-                  int var19 = false;
                }
 
                if (!rowNames.isEmpty()) {
