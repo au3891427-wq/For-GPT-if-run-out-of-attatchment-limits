@@ -1,0 +1,38 @@
+name: Build ArenaSystem Paper Plugin
+
+on:
+  push:
+    branches:
+      - feature/svc-style-handshake-v2
+    paths:
+      - "pom.xml"
+      - "arenaSystem_Bukkit-0.2.8.8 source jar code/**"
+      - ".github/workflows/build-arena-system.yml"
+  pull_request:
+    paths:
+      - "pom.xml"
+      - "arenaSystem_Bukkit-0.2.8.8 source jar code/**"
+      - ".github/workflows/build-arena-system.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Build Paper plugin
+        run: mvn --batch-mode --no-transfer-progress clean package
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arenasystem-paper-0.2.8.9
+          path: target/arenaSystem_Bukkit-0.2.8.9.jar
+          if-no-files-found: error
