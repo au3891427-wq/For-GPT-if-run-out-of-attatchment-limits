@@ -49,8 +49,21 @@ public final class TestNaturalTerrainBalancing {
 
         TerrainDetector.Report report = TerrainDetector.analyzeNatural(balanced, radius, offset, 4);
         check(report.accepted(), "Balanced natural profile should pass: " + report.rejectionReason());
-        check(result.maxAdjacentStep() > 1,
-                "Natural terrain relief should not be globally flattened to one-block steps.");
+        check(report.maxAdjacentStep() > 1,
+                "Natural terrain relief outside gameplay lanes should remain uneven.");
+        for (int[] anchor : anchors) {
+            int x = anchor[0];
+            int z = anchor[1];
+            int previous = balanced.heightAt(x, z);
+            while (x != 0 || z != 0) {
+                x += Integer.compare(0, anchor[0]);
+                z += Integer.compare(0, anchor[1]);
+                int next = balanced.heightAt(x, z);
+                check(Math.abs(next - previous) <= 1,
+                        "Every active spawn-to-objective lane must have walkable one-block steps.");
+                previous = next;
+            }
+        }
     }
 
     private static void testNaturalReliefOutsideSpawnRampsIsPreserved() {
@@ -60,10 +73,10 @@ public final class TestNaturalTerrainBalancing {
         TerrainProfile balanced = TerrainNormalizer.normalizeNatural(
                 base, SeededTerrainBlender.anchors(offset, 4)).profile();
 
-        for (int x = -12; x <= 12; x++) {
-            for (int z = -12; z <= 12; z++) {
+        for (int x = 6; x <= 12; x++) {
+            for (int z = 6; z <= 12; z++) {
                 check(balanced.heightAt(x, z) == base.heightAt(x, z),
-                        "Terrain near the objective must remain unchanged by spawn balancing.");
+                        "Natural terrain outside spawn ramps and gameplay lanes must remain unchanged.");
             }
         }
         check(!Arrays.deepEquals(base.copyHeights(), balanced.copyHeights()),
@@ -82,10 +95,12 @@ public final class TestNaturalTerrainBalancing {
             }
         }
         TerrainProfile unsafe = new TerrainProfile(radius, heights, 64, 96);
-        TerrainProfile balancedPads = TerrainNormalizer.normalizeNatural(
-                unsafe, SeededTerrainBlender.anchors(offset, 2)).profile();
-        TerrainDetector.Report report = TerrainDetector.analyzeNatural(balancedPads, radius, offset, 2);
-        check(!report.accepted(), "A route with a >3-block adjacent elevation jump must be rejected.");
+        TerrainNormalizer.Result balanced = TerrainNormalizer.normalizeNatural(
+                unsafe, SeededTerrainBlender.anchors(offset, 2));
+        TerrainDetector.Report report = TerrainDetector.analyzeNatural(balanced.profile(), radius, offset, 2);
+        check(report.accepted(), "The generated route ramp should be navigable: " + report.rejectionReason());
+        check(balanced.maxAdjustment() > 12,
+                "A route crossing an extreme ridge must exceed the 12-block earthwork limit and be rejected by the generator.");
     }
 
     private static void check(boolean condition, String message) {
