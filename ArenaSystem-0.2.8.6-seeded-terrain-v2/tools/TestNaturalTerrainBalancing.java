@@ -7,6 +7,7 @@ import java.util.List;
 public final class TestNaturalTerrainBalancing {
     public static void main(String[] args) {
         testPadsAreBalancedAndFlat();
+        testRelicObjectiveShrineIsFlat();
         testNaturalReliefOutsideSpawnRampsIsPreserved();
         testUnsafeRouteIsRejected();
         System.out.println("PASS: natural terrain preservation, shared spawn elevation, and route fairness.");
@@ -64,6 +65,24 @@ public final class TestNaturalTerrainBalancing {
                 previous = next;
             }
         }
+    }
+
+    private static void testRelicObjectiveShrineIsFlat() {
+        int radius = 40;
+        int offset = 32;
+        List<int[]> anchors = SeededTerrainBlender.anchors(offset, 2);
+        TerrainProfile base = natural(radius);
+        TerrainProfile balanced = TerrainNormalizer.normalizeNatural(base, anchors, 6, 6).profile();
+
+        int objectiveY = balanced.heightAt(0, 0);
+        for (int x = -6; x <= 6; x++) {
+            for (int z = -6; z <= 6; z++) {
+                check(balanced.heightAt(x, z) == objectiveY,
+                        "Relic Rush objective shrine must be a level 13x13 platform.");
+            }
+        }
+        TerrainDetector.Report report = TerrainDetector.analyzeNatural(balanced, radius, offset, 2);
+        check(report.accepted(), "Balanced Relic Rush profile should pass: " + report.rejectionReason());
     }
 
     private static void testNaturalReliefOutsideSpawnRampsIsPreserved() {
