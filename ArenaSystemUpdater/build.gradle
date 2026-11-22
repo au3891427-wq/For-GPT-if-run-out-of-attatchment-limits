@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'id.hadziq.arenasystem'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+application {
+    mainClass = 'id.hadziq.arenasystem.updater.UpdaterMain'
+}
+
+tasks.jar {
+    archiveBaseName = 'arenasystem-client-updater'
+    archiveVersion = project.version
+    archiveFileName = "ArenaSystem_Client_Updater-${project.version}.jar"
+    manifest {
+        attributes 'Main-Class': application.mainClass.get()
+    }
+}
