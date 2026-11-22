@@ -6,7 +6,7 @@
 
     <groupId>id.hadziq</groupId>
     <artifactId>arena-system</artifactId>
-    <version>0.2.8.6</version>
+    <version>0.2.8.9</version>
     <packaging>jar</packaging>
 
     <name>ArenaSystem</name>
@@ -35,6 +35,7 @@
 
     <build>
         <finalName>arenaSystem_Bukkit-${project.version}</finalName>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
