@@ -16,6 +16,10 @@ final class SkillInputListener implements PluginMessageListener {
          SkillInputProtocol.CHANNEL,
          this
       );
+      plugin.getServer().getMessenger().registerOutgoingPluginChannel(
+         plugin,
+         SkillInputProtocol.CHANNEL
+      );
    }
 
    @Override
@@ -42,6 +46,10 @@ final class SkillInputListener implements PluginMessageListener {
          this.plugin,
          SkillInputProtocol.CHANNEL,
          this
+      );
+      this.plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(
+         this.plugin,
+         SkillInputProtocol.CHANNEL
       );
    }
 }
