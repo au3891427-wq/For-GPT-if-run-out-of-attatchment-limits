@@ -4705,7 +4705,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    }
 
    void sendHelp(CommandSender sender) {
-      sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.10" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
+      sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.11" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
       sender.sendMessage(ChatColor.YELLOW + "/arena create <nama> [seed] [tdm|relic_rush] " + ChatColor.GRAY + "- seed menentukan variasi jalur dan cover");
       sender.sendMessage(ChatColor.YELLOW + "/arena list | info <nama> | tp <nama> <red|blue|green|yellow|center>");
       sender.sendMessage(ChatColor.YELLOW + "/arena delete <nama> confirm | regenerate <nama> [seed] | recover <nama> [discard confirm]");
