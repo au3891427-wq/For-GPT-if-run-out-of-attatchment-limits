@@ -107,85 +107,100 @@ final class PlayerArenaListener implements Listener {
       this.stopDeathCameraFollow(victimId);
       this.cancelDeathCameraExpiry(victimId);
       this.pendingDeathCameras.remove(victimId);
-      ArenaData arena = this.plugin.findArena(victim.getLocation());
-      if (arena != null) {
-         MatchState state = this.plugin.matches.get(arena.name);
-         if (state != null && state.running) {
-            boolean keepInventory = this.plugin.getConfig().getBoolean("matches.keep-inventory." + state.mode, true);
-            event.setKeepInventory(keepInventory);
-            if (keepInventory) {
-               event.getDrops().clear();
+
+      // Match membership is authoritative. Do not rely on the death coordinates:
+      // /kill and respawn/death-camera transitions can make arena position checks fragile.
+      MatchState state = null;
+      for (MatchState candidate : new ArrayList<>(this.plugin.matches.values())) {
+         if (candidate.running && candidate.teams.containsKey(victimId)) {
+            state = candidate;
+            break;
+         }
+      }
+      if (state == null) {
+         return;
+      }
+
+      ArenaData arena = this.plugin.arenas.get(state.arenaName);
+      if (arena == null) {
+         arena = this.plugin.findArenaFootprint(victim.getLocation());
+      }
+
+      boolean keepInventory = this.plugin.getConfig().getBoolean("matches.keep-inventory." + state.mode, true);
+      event.setKeepInventory(keepInventory);
+      if (keepInventory) {
+         event.getDrops().clear();
+      }
+
+      if (state.mode.equals("relic_rush")) {
+         if (victimId.equals(state.relicCarrier)) {
+            this.plugin.restoreRelicCarrierMovement(victim, state);
+         }
+
+         ItemStack relic = null;
+
+         for (int slot = 0; slot < victim.getInventory().getSize(); slot++) {
+            ItemStack stack = victim.getInventory().getItem(slot);
+            if (this.plugin.isRelic(stack, state)) {
+               if (relic == null) {
+                  relic = stack.clone();
+               }
+
+               victim.getInventory().setItem(slot, null);
+            }
+         }
+
+         ItemStack offHand = victim.getInventory().getItemInOffHand();
+         if (this.plugin.isRelic(offHand, state)) {
+            if (relic == null) {
+               relic = offHand.clone();
             }
 
-            if (state.mode.equals("relic_rush")) {
-               if (victim.getUniqueId().equals(state.relicCarrier)) {
-                  this.plugin.restoreRelicCarrierMovement(victim, state);
-               }
+            victim.getInventory().setItemInOffHand(null);
+         }
 
-               ItemStack relic = null;
+         event.getDrops().removeIf(drop -> this.plugin.isRelic(drop, state));
+         event.getItemsToKeep().removeIf(kept -> this.plugin.isRelic(kept, state));
+         if (relic != null) {
+            state.relicCarrier = null;
+            state.relicDropped = true;
+            Item droppedRelic = victim.getWorld().dropItemNaturally(victim.getLocation(), relic);
+            droppedRelic.setPickupDelay(Integer.MAX_VALUE);
+            this.plugin.announce(state, ChatColor.GOLD + "Relic terjatuh karena pembawanya kalah! Rebut kembali sebelum lawan mengamankannya.");
+            this.plugin.updateMatchHud(state);
+         }
+      }
 
-               for (int slot = 0; slot < victim.getInventory().getSize(); slot++) {
-                  ItemStack stack = victim.getInventory().getItem(slot);
-                  if (this.plugin.isRelic(stack, state)) {
-                     if (relic == null) {
-                        relic = stack.clone();
-                     }
+      Player killer = victim.getKiller();
+      String victimTeam = state.teams.get(victimId);
+      String killerTeam = killer == null ? null : state.teams.get(killer.getUniqueId());
+      boolean validEnemyKiller = killer != null
+         && killer.isOnline()
+         && !killer.getUniqueId().equals(victimId)
+         && victimTeam != null
+         && killerTeam != null
+         && !victimTeam.equals(killerTeam);
 
-                     victim.getInventory().setItem(slot, null);
-                  }
-               }
+      // Store a respawn context for every team death, including /kill and /kill @s.
+      // A null killer means "restore immediately", not "there is no match context".
+      if (victimTeam != null) {
+         this.pendingDeathCameras.put(
+            victimId,
+            new PlayerArenaListener.DeathCamera(
+               state.arenaName,
+               victimTeam,
+               validEnemyKiller ? killer.getUniqueId() : null
+            )
+         );
+      }
 
-               ItemStack offHand = victim.getInventory().getItemInOffHand();
-               if (this.plugin.isRelic(offHand, state)) {
-                  if (relic == null) {
-                     relic = offHand.clone();
-                  }
-
-                  victim.getInventory().setItemInOffHand(null);
-               }
-
-               event.getDrops().removeIf(drop -> this.plugin.isRelic(drop, state));
-               event.getItemsToKeep().removeIf(kept -> this.plugin.isRelic(kept, state));
-               if (relic != null) {
-                  state.relicCarrier = null;
-                  state.relicDropped = true;
-                  Item droppedRelic = victim.getWorld().dropItemNaturally(victim.getLocation(), relic);
-                  droppedRelic.setPickupDelay(Integer.MAX_VALUE);
-                  this.plugin.announce(state, ChatColor.GOLD + "Relic terjatuh karena pembawanya kalah! Rebut kembali sebelum lawan mengamankannya.");
-                  this.plugin.updateMatchHud(state);
-               }
-            }
-
-            Player killer = victim.getKiller();
-            String victimTeam = state.teams.get(victimId);
-            String killerTeam = killer == null ? null : state.teams.get(killer.getUniqueId());
-            boolean validEnemyKiller = killer != null
-               && killer.isOnline()
-               && !killer.getUniqueId().equals(victimId)
-               && victimTeam != null
-               && killerTeam != null
-               && !victimTeam.equals(killerTeam);
-
-            // Capture the match context while the player is still at the death location.
-            // Player#getLocation() during PlayerRespawnEvent may already point outside the arena.
-            if (victimTeam != null) {
-               this.pendingDeathCameras.put(
-                  victimId,
-                  new PlayerArenaListener.DeathCamera(
-                     arena.name,
-                     victimTeam,
-                     validEnemyKiller ? killer.getUniqueId() : null
-                  )
-               );
-            }
-
-            if (validEnemyKiller) {
-               victim.sendTitle(ChatColor.DARK_GREEN + "Slimed!", ChatColor.GRAY + "you was slain by " + ChatColor.YELLOW + killer.getName(), 0, 60, 10);
-               this.beginDeathCamera(victim, killer, arena, victimTeam);
-               if (state.mode.equals("tdm")) {
-                  this.plugin.addScore(state, arena, killerTeam, 1);
-               }
-            }
+      if (validEnemyKiller) {
+         victim.sendTitle(ChatColor.DARK_GREEN + "Slimed!", ChatColor.GRAY + "you was slain by " + ChatColor.YELLOW + killer.getName(), 0, 60, 10);
+         if (arena != null) {
+            this.beginDeathCamera(victim, killer, arena, victimTeam);
+         }
+         if (state.mode.equals("tdm") && arena != null) {
+            this.plugin.addScore(state, arena, killerTeam, 1);
          }
       }
    }
@@ -282,7 +297,7 @@ final class PlayerArenaListener implements Listener {
    public void onPlayerRespawn(PlayerRespawnEvent event) {
       Player player = event.getPlayer();
       UUID playerId = player.getUniqueId();
-      PlayerArenaListener.DeathCamera deathCamera = this.pendingDeathCameras.remove(playerId);
+      PlayerArenaListener.DeathCamera deathContext = this.pendingDeathCameras.remove(playerId);
       PlayerSnapshot deferredSnapshot = this.plugin.pendingPlayerRestores.get(playerId);
       if (deferredSnapshot != null) {
          if (deferredSnapshot.location.getWorld() != null) {
@@ -290,43 +305,80 @@ final class PlayerArenaListener implements Listener {
          }
 
          Bukkit.getScheduler().runTask(this.plugin, () -> this.plugin.restorePendingPlayerRestore(player, deferredSnapshot));
-      } else {
-         ArenaData arena = deathCamera == null ? this.plugin.findArena(player.getLocation()) : this.plugin.arenas.get(deathCamera.arenaName());
-         if (arena != null) {
-            MatchState state = this.plugin.matches.get(arena.name);
-            if (state != null && state.running) {
-               String team = state.teams.get(playerId);
-               if (team != null) {
-                  event.setRespawnLocation(this.plugin.spawnLocation(arena, team));
-                  Bukkit.getScheduler().runTask(this.plugin, () -> {
-                     MatchState active = this.plugin.matches.get(arena.name);
-                     if (active != null && active.running && player.isOnline() && team.equals(active.teams.get(playerId))) {
-                        if (this.plugin.classAbilityListener != null) {
-                           this.plugin.classAbilityListener.resetCooldownsForRespawn(player, active);
-                        } else {
-                           active.abilityCooldowns.remove(playerId);
-                        }
+         return;
+      }
 
-                        Player killer = deathCamera == null || deathCamera.killerId() == null
-                           ? null
-                           : Bukkit.getPlayer(deathCamera.killerId());
-                        if (deathCamera != null && killer != null && killer.isOnline() && !killer.isDead() && active.teams.containsKey(killer.getUniqueId())) {
-                           this.startDeathCamera(player, killer, arena, team);
-                        } else {
-                           if (player.getGameMode() == GameMode.SPECTATOR) {
-                              player.setGameMode(GameMode.SURVIVAL);
-                           }
-
-                           if (active.mode.equals("tdm")) {
-                              this.plugin.giveClassLoadout(player, active.selectedClasses.getOrDefault(playerId, "knight"));
-                           }
-                        }
-                     }
-                  });
-               }
+      MatchState state = deathContext == null ? null : this.plugin.matches.get(deathContext.arenaName());
+      if (state == null) {
+         // Fallback for contexts that were not captured, using team membership rather than position.
+         for (MatchState candidate : new ArrayList<>(this.plugin.matches.values())) {
+            if (candidate.running && candidate.teams.containsKey(playerId)) {
+               state = candidate;
+               break;
             }
          }
       }
+      if (state == null || !state.running) {
+         return;
+      }
+
+      String team = deathContext != null ? deathContext.team() : state.teams.get(playerId);
+      if (team == null || !team.equals(state.teams.get(playerId))) {
+         return;
+      }
+
+      ArenaData arena = this.plugin.arenas.get(state.arenaName);
+      if (arena == null) {
+         arena = this.plugin.findArenaFootprint(player.getLocation());
+      }
+      if (arena != null) {
+         event.setRespawnLocation(this.plugin.spawnLocation(arena, team));
+      }
+
+      final String arenaName = state.arenaName;
+      final String respawnTeam = team;
+      final ArenaData respawnArena = arena;
+      final PlayerArenaListener.DeathCamera context = deathContext;
+
+      // Apply the kit after Paper has finished its respawn inventory transition,
+      // then force a full inventory sync so offhand equipment is visible client-side.
+      Bukkit.getScheduler().runTaskLater(this.plugin, () -> {
+         MatchState active = this.plugin.matches.get(arenaName);
+         if (active == null
+            || !active.running
+            || !player.isOnline()
+            || !respawnTeam.equals(active.teams.get(playerId))) {
+            return;
+         }
+
+         if (this.plugin.classAbilityListener != null) {
+            this.plugin.classAbilityListener.resetCooldownsForRespawn(player, active);
+         } else {
+            active.abilityCooldowns.remove(playerId);
+         }
+
+         Player killer = context == null || context.killerId() == null
+            ? null
+            : Bukkit.getPlayer(context.killerId());
+         if (context != null
+            && respawnArena != null
+            && killer != null
+            && killer.isOnline()
+            && !killer.isDead()
+            && active.teams.containsKey(killer.getUniqueId())) {
+            this.startDeathCamera(player, killer, respawnArena, respawnTeam);
+         } else {
+            if (player.getGameMode() == GameMode.SPECTATOR) {
+               player.setGameMode(GameMode.SURVIVAL);
+            }
+
+            if (active.mode.equals("tdm")) {
+               String selectedClass = active.selectedClasses.getOrDefault(playerId, "knight");
+               this.plugin.giveClassLoadout(player, selectedClass);
+               player.updateInventory();
+            }
+         }
+      }, 2L);
    }
 
    void requestRespawnAfterMatch(Player player) {
@@ -412,6 +464,7 @@ final class PlayerArenaListener implements Listener {
             online.setVelocity(new Vector(0, 0, 0));
             if (active.mode.equals("tdm")) {
                this.plugin.giveClassLoadout(online, active.selectedClasses.getOrDefault(victimId, "knight"));
+               online.updateInventory();
             }
 
             online.sendMessage(ChatColor.GREEN + "Kamu telah kembali ke pertandingan!");
