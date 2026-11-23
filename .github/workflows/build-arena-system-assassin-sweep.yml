@@ -39,7 +39,7 @@ jobs:
           cp -R client-repository/ArenaSystemClient ArenaSystem-Assassin-Sweep-0.2.8.12/Client
 
       - name: Build Paper plugin with Maven
-        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Assassin-Sweep-0.2.8.12/Server/pom.xml clean package
+        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Assassin-Sweep-0.2.8.12/Server/pom.xml package
 
       - name: Build Fabric client mod
         run: gradle --no-daemon -p ArenaSystem-Assassin-Sweep-0.2.8.12/Client clean build
