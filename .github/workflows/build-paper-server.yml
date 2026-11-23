@@ -28,3 +28,10 @@ jobs:
           cache: maven
       - name: Build Paper plugin
         run: mvn --batch-mode --no-transfer-progress clean package
+      - name: Upload Paper plugin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaSystem-Paper-0.2.8.10
+          path: target/arenaSystem_Bukkit-0.2.8.10.jar
+          if-no-files-found: error
+          retention-days: 30
