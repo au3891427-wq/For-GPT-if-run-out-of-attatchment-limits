@@ -3365,7 +3365,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
       switch (selected) {
          case "archer":
             player.getInventory().setItem(0, new ItemStack(Material.BOW));
-            player.getInventory().setItem(1, new ItemStack(Material.ARROW, 48));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.ARROW, 48));
             player.getInventory().setItem(3, new ItemStack(Material.STONE_SWORD));
             player.getInventory()
                .setArmorContents(
@@ -3403,7 +3403,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
             arrowMeta.setBasePotionType(PotionType.HARMING);
             arrowMeta.setDisplayName(ChatColor.DARK_RED + "Arrow of Harming I");
             harmingArrows.setItemMeta(arrowMeta);
-            player.getInventory().setItem(1, harmingArrows);
+            player.getInventory().setItemInOffHand(harmingArrows);
             player.getInventory().setItem(3, new ItemStack(Material.STONE_SWORD));
             player.getInventory().setItem(4, new ItemStack(Material.SPYGLASS));
             player.getInventory()
@@ -3442,8 +3442,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                );
             break;
          case "tank":
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.WOODEN_SWORD)});
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.SHIELD)});
+            player.getInventory().setItem(0, new ItemStack(Material.WOODEN_SWORD));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SHIELD));
             player.getInventory()
                .setArmorContents(
                   new ItemStack[]{
@@ -3514,8 +3514,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                );
             break;
          case "ninja":
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.STONE_SWORD)});
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.SNOWBALL, 7)});
+            player.getInventory().setItem(0, new ItemStack(Material.STONE_SWORD));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SNOWBALL, 7));
             player.getInventory()
                .setArmorContents(
                   new ItemStack[]{
@@ -3629,8 +3629,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                );
             break;
          default:
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.IRON_SWORD)});
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.SHIELD)});
+            player.getInventory().setItem(0, new ItemStack(Material.IRON_SWORD));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SHIELD));
             player.getInventory()
                .setArmorContents(
                   new ItemStack[]{
@@ -3667,9 +3667,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
       this.applyClassEffects(player, selected);
       this.markKitItemsUnbreakable(player);
-      if (selected.equals("assassin")) {
-         player.getInventory().setHeldItemSlot(0);
-      }
+      // Start every class with its primary attack tool or primary skill selected.
+      player.getInventory().setHeldItemSlot(0);
    }
 
    void applyClassEffects(Player player, String className) {
