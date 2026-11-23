@@ -1545,7 +1545,7 @@ final class ClassAbilityListener implements Listener {
       }
 
       final Vector forward = player.getEyeLocation().getDirection().normalize();
-      final Vector side = new Vector<>(-forward.getZ(), 0.0, forward.getX());
+      final Vector side = new Vector(-forward.getZ(), 0.0, forward.getX());
       if (side.lengthSquared() > 1.0E-4) {
          side.normalize();
       } else {
@@ -1589,7 +1589,7 @@ final class ClassAbilityListener implements Listener {
          && this.activeTdmMatch(player) == state
          && "demoman".equalsIgnoreCase(state.selectedClasses.getOrDefault(player.getUniqueId(), "knight"))) {
          Vector forward = player.getEyeLocation().getDirection().normalize();
-         Vector side = new Vector<>(-forward.getZ(), 0.0, forward.getX());
+         Vector side = new Vector(-forward.getZ(), 0.0, forward.getX());
          if (side.lengthSquared() > 1.0E-4) {
             side.normalize();
          } else {
@@ -1619,7 +1619,7 @@ final class ClassAbilityListener implements Listener {
       int spreadIndex = shotIndex - 1;
       Snowball projectile = (Snowball)player.launchProjectile(Snowball.class);
       projectile.setItem(new ItemStack(blastType == ClassAbilityListener.DemomanBlastType.PRIMARY_BOMB ? Material.TNT : Material.FIRE_CHARGE));
-      Vector velocity = forward.clone().multiply(1.15).add(side.clone().multiply(spreadIndex * 0.2)).add(new Vector<>(0.0, spreadIndex == 0 ? 0.04 : 0.1, 0.0));
+      Vector velocity = forward.clone().multiply(1.15).add(side.clone().multiply(spreadIndex * 0.2)).add(new Vector(0.0, spreadIndex == 0 ? 0.04 : 0.1, 0.0));
       projectile.setVelocity(velocity);
       projectile.setGravity(true);
       this.demomanDynamite
@@ -1685,7 +1685,7 @@ final class ClassAbilityListener implements Listener {
       }
 
       player.setFallDistance(0.0F);
-      player.setVelocity(new Vector<>(0, 0, 0));
+      player.setVelocity(new Vector(0, 0, 0));
       player.getWorld().playSound(destination, Sound.ENTITY_ENDERMAN_TELEPORT, 0.9F, 1.25F);
       player.getWorld().spawnParticle(Particle.PORTAL, destination.clone().add(0.0, 1.0, 0.0), 28, 0.35, 0.55, 0.35, 0.1);
       player.sendMessage(ChatColor.DARK_GREEN + "Shadow Step berhasil: kamu berpindah tanpa Ender Pearl.");
