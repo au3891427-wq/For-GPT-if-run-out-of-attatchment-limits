@@ -31,7 +31,7 @@ jobs:
       - name: Upload Paper plugin JAR
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Paper-0.2.8.10
-          path: target/arenaSystem_Bukkit-0.2.8.10.jar
+          name: ArenaSystem-Paper-0.2.8.11
+          path: target/arenaSystem_Bukkit-0.2.8.11.jar
           if-no-files-found: error
           retention-days: 30
