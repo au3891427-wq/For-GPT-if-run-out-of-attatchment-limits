@@ -122,6 +122,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    ClassPassiveManager classPassiveManager;
    PluginUpdateNotifier updateNotifier;
    CompanionClientListener companionClientListener;
+   SkillInputListener skillInputListener;
    BukkitTask relicCarrierMovementTask;
    private final ConfigTransaction.ConfigAccess configAccess = new ConfigTransaction.ConfigAccess() {
       @Override
@@ -177,8 +178,14 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
       this.getConfig().addDefault("client-mod.timeout-seconds", 10);
       this.getConfig().addDefault("updates.enabled", true);
       this.getConfig().addDefault("updates.check-interval-hours", 6);
-      this.getConfig()
-         .addDefault("updates.manifest-url", "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json");
+      String legacyUpdateManifestUrl =
+         "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json";
+      String stableUpdateManifestUrl =
+         "https://raw.githubusercontent.com/au3891427-wq/Arena-System-Plugins-Client-and-Server/main/arenasystem-server-update-manifest.json";
+      if (legacyUpdateManifestUrl.equals(this.getConfig().getString("updates.manifest-url", ""))) {
+         this.getConfig().set("updates.manifest-url", stableUpdateManifestUrl);
+      }
+      this.getConfig().addDefault("updates.manifest-url", stableUpdateManifestUrl);
       this.getConfig().addDefault("terrain.max-adjacent-step", 1);
       if (this.getConfig().getInt("terrain.max-adjacent-step", 1) != 1) {
          this.getLogger().warning("terrain.max-adjacent-step sekarang wajib 1; nilai konfigurasi lama diubah ke 1.");
@@ -249,6 +256,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
       pm.registerEvents(new ClassMenuListener(this), this);
       this.classAbilityListener = new ClassAbilityListener(this);
       pm.registerEvents(this.classAbilityListener, this);
+      this.skillInputListener = new SkillInputListener(this);
       this.classPassiveManager = new ClassPassiveManager(this);
       pm.registerEvents(this.classPassiveManager, this);
       if (this.getConfig().getBoolean("client-mod.required", true)) {
@@ -259,7 +267,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
       this.relicCarrierMovementTask = Bukkit.getScheduler().runTaskTimer(this, this::enforceRelicCarrierMovement, 1L, 1L);
       this.loadArenas();
-      this.getLogger().info("ArenaSystem 0.2.8.9 aktif. Arena siap: " + this.arenas.size());
+      this.getLogger().info("ArenaSystem 0.2.8.11 aktif. Arena siap: " + this.arenas.size());
       if (this.getConfig().getBoolean("updates.enabled", true)) {
          this.updateNotifier = new PluginUpdateNotifier(this);
          this.updateNotifier.start();
@@ -341,6 +349,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    }
 
    public void onDisable() {
+      if (this.skillInputListener != null) {
+         this.skillInputListener.close();
+         this.skillInputListener = null;
+      }
+
       if (this.companionClientListener != null) {
          this.companionClientListener.shutdown();
          this.companionClientListener = null;
@@ -3436,8 +3449,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                );
             break;
          case "tank":
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.WOODEN_SWORD)});
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.SHIELD)});
+            player.getInventory().setItem(0, new ItemStack(Material.WOODEN_SWORD));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SHIELD));
             player.getInventory()
                .setArmorContents(
                   new ItemStack[]{
@@ -3508,8 +3521,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                );
             break;
          case "ninja":
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.STONE_SWORD)});
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.SNOWBALL, 7)});
+            player.getInventory().setItem(0, new ItemStack(Material.STONE_SWORD));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SNOWBALL, 7));
             player.getInventory()
                .setArmorContents(
                   new ItemStack[]{
@@ -3623,8 +3636,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
                );
             break;
          default:
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.IRON_SWORD)});
-            player.getInventory().addItem(new ItemStack[]{new ItemStack(Material.SHIELD)});
+            player.getInventory().setItem(0, new ItemStack(Material.IRON_SWORD));
+            player.getInventory().setItemInOffHand(new ItemStack(Material.SHIELD));
             player.getInventory()
                .setArmorContents(
                   new ItemStack[]{
@@ -3661,9 +3674,8 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
       this.applyClassEffects(player, selected);
       this.markKitItemsUnbreakable(player);
-      if (selected.equals("assassin")) {
-         player.getInventory().setHeldItemSlot(0);
-      }
+      // Start every class with its primary attack tool or primary skill selected.
+      player.getInventory().setHeldItemSlot(0);
    }
 
    void applyClassEffects(Player player, String className) {
@@ -4693,7 +4705,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    }
 
    void sendHelp(CommandSender sender) {
-      sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.6" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
+      sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.11" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
       sender.sendMessage(ChatColor.YELLOW + "/arena create <nama> [seed] [tdm|relic_rush] " + ChatColor.GRAY + "- seed menentukan variasi jalur dan cover");
       sender.sendMessage(ChatColor.YELLOW + "/arena list | info <nama> | tp <nama> <red|blue|green|yellow|center>");
       sender.sendMessage(ChatColor.YELLOW + "/arena delete <nama> confirm | regenerate <nama> [seed] | recover <nama> [discard confirm]");

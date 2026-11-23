@@ -69,6 +69,7 @@ final class ClassAbilityListener implements Listener {
    private final Map<UUID, Long> assassinVenomReady = new HashMap<>();
    private final Map<UUID, Long> assassinOffhandAttackReady = new HashMap<>();
    private final Map<UUID, Long> assassinOffhandLastSwingNanos = new HashMap<>();
+   private final Map<UUID, Long> skillInputLastReceivedNanos = new HashMap<>();
    private static final double ASSASSIN_OFFHAND_RANGE = 3.2;
    private static final double ASSASSIN_OFFHAND_DAMAGE = 2.0;
    private static final long ASSASSIN_OFFHAND_COOLDOWN_MILLIS = 600L;
@@ -965,7 +966,9 @@ final class ClassAbilityListener implements Listener {
 
    @EventHandler
    public void onPlayerQuit(PlayerQuitEvent event) {
-      this.cancelFor(event.getPlayer());
+      Player player = event.getPlayer();
+      this.skillInputLastReceivedNanos.remove(player.getUniqueId());
+      this.cancelFor(player);
    }
 
    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -1095,6 +1098,46 @@ final class ClassAbilityListener implements Listener {
       }
 
       return null;
+   }
+
+   /**
+    * Handles a versioned client input action. The action identity comes from the
+    * custom payload, not from the player's current Shift/Sprint state.
+    */
+   void handleSkillInput(Player player, byte action) {
+      if (player == null
+         || !player.isOnline()
+         || player.isDead()
+         || player.getGameMode() != GameMode.SURVIVAL
+         || this.vanishedPlayers.contains(player.getUniqueId())
+         || (action != SkillInputProtocol.ACTION_PRIMARY && action != SkillInputProtocol.ACTION_SECONDARY)) {
+         return;
+      }
+
+      MatchState state = this.activeTdmMatch(player);
+      if (state == null) {
+         return;
+      }
+
+      long now = System.nanoTime();
+      UUID playerId = player.getUniqueId();
+      long previous = this.skillInputLastReceivedNanos.getOrDefault(playerId, 0L);
+      if (previous != 0L && now - previous < 75_000_000L) {
+         return;
+      }
+      this.skillInputLastReceivedNanos.put(playerId, now);
+
+      String className = state.selectedClasses.getOrDefault(playerId, "knight").toLowerCase(java.util.Locale.ROOT);
+      boolean secondary = action == SkillInputProtocol.ACTION_SECONDARY;
+      String skill = secondary ? this.secondarySkill(className) : this.primarySkill(className);
+      if (skill == null) {
+         return;
+      }
+
+      Material trigger = secondary
+         ? this.secondarySkillMaterial(className)
+         : this.primarySkillMaterial(className);
+      this.activate(player, state, skill, trigger);
    }
 
    private MatchState activeMatch(Player player) {
@@ -1469,6 +1512,7 @@ final class ClassAbilityListener implements Listener {
    }
 
    void cleanupAll() {
+      this.skillInputLastReceivedNanos.clear();
       if (this.ninjaSnowballRestockTask != null && !this.ninjaSnowballRestockTask.isCancelled()) {
          this.ninjaSnowballRestockTask.cancel();
       }
