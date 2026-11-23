@@ -157,14 +157,28 @@ final class PlayerArenaListener implements Listener {
             }
 
             Player killer = victim.getKiller();
-            String victimTeam = state.teams.get(victim.getUniqueId());
+            String victimTeam = state.teams.get(victimId);
             String killerTeam = killer == null ? null : state.teams.get(killer.getUniqueId());
             boolean validEnemyKiller = killer != null
                && killer.isOnline()
-               && !killer.getUniqueId().equals(victim.getUniqueId())
+               && !killer.getUniqueId().equals(victimId)
                && victimTeam != null
                && killerTeam != null
                && !victimTeam.equals(killerTeam);
+
+            // Capture the match context while the player is still at the death location.
+            // Player#getLocation() during PlayerRespawnEvent may already point outside the arena.
+            if (victimTeam != null) {
+               this.pendingDeathCameras.put(
+                  victimId,
+                  new PlayerArenaListener.DeathCamera(
+                     arena.name,
+                     victimTeam,
+                     validEnemyKiller ? killer.getUniqueId() : null
+                  )
+               );
+            }
+
             if (validEnemyKiller) {
                victim.sendTitle(ChatColor.DARK_GREEN + "Slimed!", ChatColor.GRAY + "you was slain by " + ChatColor.YELLOW + killer.getName(), 0, 60, 10);
                this.beginDeathCamera(victim, killer, arena, victimTeam);
@@ -293,7 +307,9 @@ final class PlayerArenaListener implements Listener {
                            active.abilityCooldowns.remove(playerId);
                         }
 
-                        Player killer = deathCamera == null ? null : Bukkit.getPlayer(deathCamera.killerId());
+                        Player killer = deathCamera == null || deathCamera.killerId() == null
+                           ? null
+                           : Bukkit.getPlayer(deathCamera.killerId());
                         if (deathCamera != null && killer != null && killer.isOnline() && !killer.isDead() && active.teams.containsKey(killer.getUniqueId())) {
                            this.startDeathCamera(player, killer, arena, team);
                         } else {
