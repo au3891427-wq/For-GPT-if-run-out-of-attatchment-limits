@@ -7,7 +7,7 @@ client-mod:
 updates:
   enabled: true
   check-interval-hours: 6
-  manifest-url: "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json"
+  manifest-url: "https://raw.githubusercontent.com/au3891427-wq/Arena-System-Plugins-Client-and-Server/main/arenasystem-server-update-manifest.json"
 
 # Optional server-delivered resource pack for the Assassin Dagger model.
 # The server can verify only packs requested from this URL, not manually installed packs.
