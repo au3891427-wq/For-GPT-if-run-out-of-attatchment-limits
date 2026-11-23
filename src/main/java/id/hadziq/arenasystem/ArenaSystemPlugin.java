@@ -122,6 +122,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    ClassPassiveManager classPassiveManager;
    PluginUpdateNotifier updateNotifier;
    CompanionClientListener companionClientListener;
+   SkillInputListener skillInputListener;
    BukkitTask relicCarrierMovementTask;
    private final ConfigTransaction.ConfigAccess configAccess = new ConfigTransaction.ConfigAccess() {
       @Override
@@ -255,6 +256,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
       pm.registerEvents(new ClassMenuListener(this), this);
       this.classAbilityListener = new ClassAbilityListener(this);
       pm.registerEvents(this.classAbilityListener, this);
+      this.skillInputListener = new SkillInputListener(this);
       this.classPassiveManager = new ClassPassiveManager(this);
       pm.registerEvents(this.classPassiveManager, this);
       if (this.getConfig().getBoolean("client-mod.required", true)) {
@@ -265,7 +267,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
       this.relicCarrierMovementTask = Bukkit.getScheduler().runTaskTimer(this, this::enforceRelicCarrierMovement, 1L, 1L);
       this.loadArenas();
-      this.getLogger().info("ArenaSystem 0.2.8.10 aktif. Arena siap: " + this.arenas.size());
+      this.getLogger().info("ArenaSystem 0.2.8.11 aktif. Arena siap: " + this.arenas.size());
       if (this.getConfig().getBoolean("updates.enabled", true)) {
          this.updateNotifier = new PluginUpdateNotifier(this);
          this.updateNotifier.start();
@@ -347,6 +349,11 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    }
 
    public void onDisable() {
+      if (this.skillInputListener != null) {
+         this.skillInputListener.close();
+         this.skillInputListener = null;
+      }
+
       if (this.companionClientListener != null) {
          this.companionClientListener.shutdown();
          this.companionClientListener = null;
