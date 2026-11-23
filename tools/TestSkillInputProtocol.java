@@ -1,7 +1,5 @@
 package id.hadziq.arenasystem;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 
 public final class TestSkillInputProtocol {
