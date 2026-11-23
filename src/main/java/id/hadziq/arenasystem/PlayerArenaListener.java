@@ -110,16 +110,17 @@ final class PlayerArenaListener implements Listener {
 
       // Match membership is authoritative. Do not rely on the death coordinates:
       // /kill and respawn/death-camera transitions can make arena position checks fragile.
-      MatchState state = null;
+      MatchState foundState = null;
       for (MatchState candidate : new ArrayList<>(this.plugin.matches.values())) {
          if (candidate.running && candidate.teams.containsKey(victimId)) {
-            state = candidate;
+            foundState = candidate;
             break;
          }
       }
-      if (state == null) {
+      if (foundState == null) {
          return;
       }
+      final MatchState state = foundState;
 
       ArenaData arena = this.plugin.arenas.get(state.arenaName);
       if (arena == null) {
