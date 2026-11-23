@@ -133,6 +133,10 @@ final class PluginUpdateNotifier implements Listener {
          String version = fields.get("version");
          String releaseUrl = fields.get("releaseUrl");
          String downloadUrl = fields.get("downloadUrl");
+         String sha256 = fields.get("sha256");
+         if (sha256 == null || !sha256.matches("(?i)[a-f0-9]{64}")) {
+            throw new IOException("Manifest contains a missing or invalid server JAR SHA-256.");
+         }
          if (!"stable".equals(channel)) {
             throw new IOException("Refusing a non-stable server update manifest.");
          }
