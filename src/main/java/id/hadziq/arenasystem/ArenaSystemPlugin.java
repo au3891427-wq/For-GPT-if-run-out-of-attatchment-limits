@@ -177,8 +177,14 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
       this.getConfig().addDefault("client-mod.timeout-seconds", 10);
       this.getConfig().addDefault("updates.enabled", true);
       this.getConfig().addDefault("updates.check-interval-hours", 6);
-      this.getConfig()
-         .addDefault("updates.manifest-url", "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json");
+      String legacyUpdateManifestUrl =
+         "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json";
+      String stableUpdateManifestUrl =
+         "https://raw.githubusercontent.com/au3891427-wq/Arena-System-Plugins-Client-and-Server/main/arenasystem-server-update-manifest.json";
+      if (legacyUpdateManifestUrl.equals(this.getConfig().getString("updates.manifest-url", ""))) {
+         this.getConfig().set("updates.manifest-url", stableUpdateManifestUrl);
+      }
+      this.getConfig().addDefault("updates.manifest-url", stableUpdateManifestUrl);
       this.getConfig().addDefault("terrain.max-adjacent-step", 1);
       if (this.getConfig().getInt("terrain.max-adjacent-step", 1) != 1) {
          this.getLogger().warning("terrain.max-adjacent-step sekarang wajib 1; nilai konfigurasi lama diubah ke 1.");
