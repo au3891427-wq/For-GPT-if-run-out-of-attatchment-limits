@@ -25,9 +25,12 @@ import org.bukkit.scheduler.BukkitTask;
 
 final class PluginUpdateNotifier implements Listener {
    private static final URI DEFAULT_MANIFEST_URI = URI.create(
-      "https://raw.githubusercontent.com/au3891427-wq/proyek-arenasystem-plugin/main/arena-system-update-manifest.json"
+      "https://raw.githubusercontent.com/au3891427-wq/Arena-System-Plugins-Client-and-Server/main/arenasystem-server-update-manifest.json"
    );
-   private static final String EXPECTED_RELEASE_PREFIX = "https://github.com/au3891427-wq/proyek-arenasystem-plugin/releases/tag/arena-system-v";
+   private static final String EXPECTED_RELEASE_URL =
+      "https://github.com/au3891427-wq/Arena-System-Plugins-Client-and-Server/releases/tag/Bukkit";
+   private static final String EXPECTED_DOWNLOAD_PREFIX =
+      "https://github.com/au3891427-wq/Arena-System-Plugins-Client-and-Server/releases/download/Bukkit/";
    private static final long MAX_MANIFEST_BYTES = 32768L;
    private static final Pattern STRING_FIELD = Pattern.compile("\\\"([A-Za-z][A-Za-z0-9]*)\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"");
    private static final Pattern SCHEMA_VERSION_ONE = Pattern.compile("\\\"schemaVersion\\\"\\s*:\\s*1(?:\\s*[,}])");
@@ -125,19 +128,31 @@ final class PluginUpdateNotifier implements Listener {
             throw new IOException("Manifest plugin name mismatch.");
          }
 
+         String channel = fields.get("channel");
+         String releaseTag = fields.get("releaseTag");
          String version = fields.get("version");
          String releaseUrl = fields.get("releaseUrl");
-         if (version != null && releaseUrl != null) {
-            parseVersion(version);
-            String expectedUrl = "https://github.com/au3891427-wq/proyek-arenasystem-plugin/releases/tag/arena-system-v" + version;
-            if (!expectedUrl.equals(releaseUrl)) {
-               throw new IOException("Manifest release URL does not match its version.");
-            } else {
-               return new PluginUpdateNotifier.AvailableUpdate(version, releaseUrl);
-            }
-         } else {
-            throw new IOException("Manifest is missing version or releaseUrl.");
+         String downloadUrl = fields.get("downloadUrl");
+         if (!"stable".equals(channel)) {
+            throw new IOException("Refusing a non-stable server update manifest.");
          }
+         if (!"Bukkit".equals(releaseTag)) {
+            throw new IOException("Manifest release tag is not the stable Bukkit release.");
+         }
+         if (version == null || releaseUrl == null || downloadUrl == null) {
+            throw new IOException("Manifest is missing version or download links.");
+         }
+
+         parseVersion(version);
+         String expectedDownloadUrl = EXPECTED_DOWNLOAD_PREFIX + "arenaSystem_Bukkit-" + version + ".jar";
+         if (!EXPECTED_RELEASE_URL.equals(releaseUrl)) {
+            throw new IOException("Manifest release URL is not the stable Bukkit release page.");
+         }
+         if (!expectedDownloadUrl.equals(downloadUrl)) {
+            throw new IOException("Manifest download URL does not match its version.");
+         }
+
+         return new PluginUpdateNotifier.AvailableUpdate(version, releaseUrl, downloadUrl);
       } else {
          response.body().close();
          throw new IOException("Manifest response came from an untrusted host.");
@@ -145,8 +160,11 @@ final class PluginUpdateNotifier implements Listener {
    }
 
    private void announceUpdate(PluginUpdateNotifier.AvailableUpdate update) {
-      this.plugin.getLogger().warning("Update ArenaSystem tersedia: " + update.version() + " (terpasang: " + this.plugin.getDescription().getVersion() + ").");
-      this.plugin.getLogger().warning("Unduh manual: " + update.releaseUrl());
+      this.plugin.getLogger().warning("Update ArenaSystem tersedia: " + update.version()
+         + " (terpasang: " + this.plugin.getDescription().getVersion() + ").");
+      this.plugin.getLogger().warning("Unduh JAR secara manual: " + update.downloadUrl());
+      this.plugin.getLogger().warning("Catatan rilis: " + update.releaseUrl());
+      this.plugin.getLogger().warning("Tidak ada file yang diunduh atau dipasang otomatis. Pasang JAR saat server mati.");
 
       for (Player player : Bukkit.getOnlinePlayers()) {
          this.sendNotice(player, update);
@@ -164,7 +182,8 @@ final class PluginUpdateNotifier implements Listener {
    private void sendNotice(Player player, PluginUpdateNotifier.AvailableUpdate update) {
       if (player.isOp() || player.hasPermission("arenasystem.admin")) {
          player.sendMessage(ChatColor.GOLD + "[ArenaSystem] Update tersedia: " + ChatColor.YELLOW + update.version());
-         player.sendMessage(ChatColor.GRAY + "Unduh manual: " + ChatColor.AQUA + update.releaseUrl());
+         player.sendMessage(ChatColor.GRAY + "Unduh JAR manual: " + ChatColor.AQUA + update.downloadUrl());
+         player.sendMessage(ChatColor.GRAY + "Catatan rilis: " + ChatColor.AQUA + update.releaseUrl());
          player.sendMessage(ChatColor.GRAY + "Plugin tidak diperbarui otomatis; pasang JAR saat server mati.");
       }
    }
@@ -218,6 +237,6 @@ final class PluginUpdateNotifier implements Listener {
       }
    }
 
-   private record AvailableUpdate(String version, String releaseUrl) {
+   private record AvailableUpdate(String version, String releaseUrl, String downloadUrl) {
    }
 }
