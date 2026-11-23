@@ -1,0 +1,91 @@
+name: Build ArenaSystem Assassin Sweep source
+
+on:
+  push:
+    paths:
+      - "ArenaSystem-Assassin-Sweep-0.2.8.12/**"
+      - ".github/workflows/build-arena-system-assassin-sweep.yml"
+  pull_request:
+    paths:
+      - "ArenaSystem-Assassin-Sweep-0.2.8.12/**"
+      - ".github/workflows/build-arena-system-assassin-sweep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.8.0"
+
+      - name: Obtain the matching Fabric client source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
+          git -C client-repository checkout 671a06983a28a13525977565b0f97f663ddf133a
+          mkdir -p ArenaSystem-Assassin-Sweep-0.2.8.12
+          cp -R client-repository/ArenaSystemClient ArenaSystem-Assassin-Sweep-0.2.8.12/Client
+
+      - name: Build Paper plugin with Maven
+        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Assassin-Sweep-0.2.8.12/Server/pom.xml clean package
+
+      - name: Build Fabric client mod
+        run: gradle --no-daemon -p ArenaSystem-Assassin-Sweep-0.2.8.12/Client clean build
+
+      - name: Test companion handshake protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="ArenaSystem-Assassin-Sweep-0.2.8.12/Client"
+          test_dir="${RUNNER_TEMP}/arenasystem-handshake-test"
+          mkdir -p "$test_dir"
+          javac -d "$test_dir" \
+            "$project/src/main/java/id/hadziq/arenasystem/client/CompanionHandshakeProtocol.java" \
+            "$project/tools/TestCompanionHandshakeProtocol.java"
+          java -cp "$test_dir" id.hadziq.arenasystem.client.TestCompanionHandshakeProtocol
+
+      - name: Test class-skill input protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="ArenaSystem-Assassin-Sweep-0.2.8.12/Client"
+          test_dir="${RUNNER_TEMP}/arenasystem-skill-input-test"
+          mkdir -p "$test_dir"
+          javac -d "$test_dir" \
+            "$project/src/main/java/id/hadziq/arenasystem/client/SkillInputProtocol.java" \
+            "$project/tools/TestSkillInputProtocol.java"
+          java -cp "$test_dir" id.hadziq.arenasystem.client.TestSkillInputProtocol
+
+      - name: Package clean source ZIP
+        run: |
+          mkdir -p dist
+          zip -r "dist/ArenaSystem-Assassin-Sweep-0.2.8.12-source.zip" "ArenaSystem-Assassin-Sweep-0.2.8.12" \
+            -x "*/Server/target/*" "*/Client/build/*" "*/Client/.gradle/*"
+
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaSystem-Assassin-Sweep-0.2.8.12-source
+          path: dist/ArenaSystem-Assassin-Sweep-0.2.8.12-source.zip
+          if-no-files-found: error
+
+      - name: Upload validated JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArenaSystem-Assassin-Sweep-0.2.8.12-jars
+          path: |
+            ArenaSystem-Assassin-Sweep-0.2.8.12/Server/target/arenaSystem_Bukkit-0.2.8.12.jar
+            ArenaSystem-Assassin-Sweep-0.2.8.12/Client/build/libs/ArenaSystem_Client-0.2.3.jar
+          if-no-files-found: error
