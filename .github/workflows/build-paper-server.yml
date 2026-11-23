@@ -5,6 +5,7 @@ on:
     paths:
       - "pom.xml"
       - "src/**"
+      - "tools/**"
       - ".github/workflows/build-paper-server.yml"
   pull_request:
     paths:
@@ -28,6 +29,12 @@ jobs:
           cache: maven
       - name: Build Paper plugin
         run: mvn --batch-mode --no-transfer-progress clean package
+      - name: Test skill input protocol
+        run: |
+          test_dir="$RUNNER_TEMP/arenasystem-skill-input-test"
+          mkdir -p "$test_dir"
+          javac -d "$test_dir" src/main/java/id/hadziq/arenasystem/SkillInputProtocol.java tools/TestSkillInputProtocol.java
+          java -cp "$test_dir" id.hadziq.arenasystem.TestSkillInputProtocol
       - name: Upload Paper plugin JAR
         uses: actions/upload-artifact@v4
         with:
