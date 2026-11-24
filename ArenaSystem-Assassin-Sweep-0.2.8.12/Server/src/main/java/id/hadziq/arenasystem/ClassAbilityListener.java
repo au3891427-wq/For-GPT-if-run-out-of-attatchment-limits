@@ -70,6 +70,7 @@ final class ClassAbilityListener implements Listener {
    private final Map<UUID, Long> pinningProjectiles = new HashMap<>();
    private final Map<UUID, Long> assassinVenomReady = new HashMap<>();
    private final Map<UUID, Long> assassinOffhandReadyAtNanos = new HashMap<>();
+   private final Map<UUID, Long> assassinOffhandInputLastReceivedNanos = new HashMap<>();
    private final Map<UUID, Long> skillInputLastReceivedNanos = new HashMap<>();
    private static final String ASSASSIN_OFFHAND_COOLDOWN_CHANNEL = "arenasystem:assassin_offhand_cooldown";
    private static final double ASSASSIN_OFFHAND_DAMAGE = 2.0;
@@ -574,15 +575,6 @@ final class ClassAbilityListener implements Listener {
          Action action = event.getAction();
          if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
             Player player = event.getPlayer();
-            if (action == Action.RIGHT_CLICK_AIR) {
-               MatchState assassinState = this.activeTdmMatch(player);
-               if (this.isAssassinDualBladeReady(player, assassinState)) {
-                  event.setCancelled(true);
-                  this.useAssassinOffhand(player, assassinState, this.rayTraceAssassinOffhandTarget(player, assassinState));
-                  return;
-               }
-            }
-
             ItemStack heldItem = player.getInventory().getItemInMainHand();
             if (heldItem == null || heldItem.getType() == Material.AIR) {
                heldItem = event.getItem();
@@ -612,25 +604,6 @@ final class ClassAbilityListener implements Listener {
       }
    }
 
-   @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-   public void onAssassinOffhandEntityUse(PlayerInteractEntityEvent event) {
-      if (event.getHand() != EquipmentSlot.HAND) {
-         return;
-      }
-
-      Player player = event.getPlayer();
-      MatchState state = this.activeTdmMatch(player);
-      if (!this.isAssassinDualBladeReady(player, state)) {
-         return;
-      }
-
-      event.setCancelled(true);
-      Player target = event.getRightClicked() instanceof Player clicked
-            && this.isValidAssassinOffhandTarget(player, clicked, state)
-         ? clicked
-         : null;
-      this.useAssassinOffhand(player, state, target);
-   }
 
    private boolean isAssassinDualBladeReady(Player player, MatchState state) {
       return state != null
@@ -1111,26 +1084,51 @@ final class ClassAbilityListener implements Listener {
    }
 
    void handleSkillInput(Player player, byte action) {
-      if (player != null
-         && player.isOnline()
-         && !player.isDead()
-         && player.getGameMode() == GameMode.SURVIVAL
-         && !this.vanishedPlayers.contains(player.getUniqueId())
-         && (action == 1 || action == 2)) {
-         MatchState state = this.activeTdmMatch(player);
-         if (state != null) {
-            long now = System.nanoTime();
-            UUID playerId = player.getUniqueId();
-            long previous = this.skillInputLastReceivedNanos.getOrDefault(playerId, 0L);
-            if (previous == 0L || now - previous >= 75000000L) {
-               this.skillInputLastReceivedNanos.put(playerId, now);
-               String className = state.selectedClasses.getOrDefault(playerId, "knight").toLowerCase(Locale.ROOT);
-               boolean secondary = action == 2;
-               String skill = secondary ? this.secondarySkill(className) : this.primarySkill(className);
-               if (skill != null) {
-                  Material trigger = secondary ? this.secondarySkillMaterial(className) : this.primarySkillMaterial(className);
-                  this.activate(player, state, skill, trigger);
-               }
+      if (player == null
+         || !player.isOnline()
+         || player.isDead()
+         || player.getGameMode() != GameMode.SURVIVAL
+         || this.vanishedPlayers.contains(player.getUniqueId())) {
+         return;
+      }
+
+      if (action == SkillInputProtocol.ACTION_ASSASSIN_OFFHAND) {
+         MatchState assassinState = this.activeTdmMatch(player);
+         if (!this.isAssassinDualBladeReady(player, assassinState)) {
+            return;
+         }
+
+         UUID playerId = player.getUniqueId();
+         long now = System.nanoTime();
+         long previous = this.assassinOffhandInputLastReceivedNanos.getOrDefault(playerId, 0L);
+         if (previous == 0L || now - previous >= 100_000_000L) {
+            this.assassinOffhandInputLastReceivedNanos.put(playerId, now);
+            this.useAssassinOffhand(
+               player,
+               assassinState,
+               this.rayTraceAssassinOffhandTarget(player, assassinState)
+            );
+         }
+         return;
+      }
+
+      if (action != SkillInputProtocol.ACTION_PRIMARY && action != SkillInputProtocol.ACTION_SECONDARY) {
+         return;
+      }
+
+      MatchState state = this.activeTdmMatch(player);
+      if (state != null) {
+         long now = System.nanoTime();
+         UUID playerId = player.getUniqueId();
+         long previous = this.skillInputLastReceivedNanos.getOrDefault(playerId, 0L);
+         if (previous == 0L || now - previous >= 75000000L) {
+            this.skillInputLastReceivedNanos.put(playerId, now);
+            String className = state.selectedClasses.getOrDefault(playerId, "knight").toLowerCase(Locale.ROOT);
+            boolean secondary = action == SkillInputProtocol.ACTION_SECONDARY;
+            String skill = secondary ? this.secondarySkill(className) : this.primarySkill(className);
+            if (skill != null) {
+               Material trigger = secondary ? this.secondarySkillMaterial(className) : this.primarySkillMaterial(className);
+               this.activate(player, state, skill, trigger);
             }
          }
       }
@@ -1466,6 +1464,7 @@ final class ClassAbilityListener implements Listener {
          this.archerPinningReady.remove(id);
          this.assassinVenomReady.remove(id);
          this.assassinOffhandReadyAtNanos.remove(id);
+         this.assassinOffhandInputLastReceivedNanos.remove(id);
          this.sniperFocusActive.remove(id);
          this.ninjaSnowballNextRestock.remove(id);
          this.boxerHeavyJabLastInteractionNanos.remove(id);
@@ -1563,6 +1562,7 @@ final class ClassAbilityListener implements Listener {
       this.sniperAimLocked.clear();
       this.boxerHeavyJabLastInteractionNanos.clear();
       this.assassinOffhandReadyAtNanos.clear();
+      this.assassinOffhandInputLastReceivedNanos.clear();
       this.assassinVenomReady.clear();
       this.ninjaSnowballNextRestock.clear();
       this.focusedProjectiles.clear();
