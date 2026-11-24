@@ -34,23 +34,23 @@ jobs:
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
-          git -C client-repository checkout 541c713759391c0c9ac712cf2f6a61e3fbf6fd08
-          bundle="ArenaSystem-Assassin-Offhand-0.2.8.14"
+          git -C client-repository checkout 0150e882e5b3ae2926ec96f873d1da020b550077
+          bundle="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7"
           mkdir -p "$bundle"
           cp -R ArenaSystem-Assassin-Sweep-0.2.8.12/Server "$bundle/Server"
           cp -R client-repository/ArenaSystemClient "$bundle/Client"
 
       - name: Build Paper plugin with Maven
-        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Assassin-Offhand-0.2.8.14/Server/pom.xml package
+        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Server/pom.xml package
 
       - name: Build Fabric client mod
-        run: gradle --no-daemon -p ArenaSystem-Assassin-Offhand-0.2.8.14/Client clean build
+        run: gradle --no-daemon -p ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client clean build
 
       - name: Test companion handshake protocol
         shell: bash
         run: |
           set -euo pipefail
-          project="ArenaSystem-Assassin-Offhand-0.2.8.14/Client"
+          project="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client"
           test_dir="${RUNNER_TEMP}/arenasystem-handshake-test"
           mkdir -p "$test_dir"
           javac -d "$test_dir" \
@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          project="ArenaSystem-Assassin-Offhand-0.2.8.14/Client"
+          project="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client"
           test_dir="${RUNNER_TEMP}/arenasystem-client-input-test"
           mkdir -p "$test_dir"
           javac -d "$test_dir" \
@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          project="ArenaSystem-Assassin-Offhand-0.2.8.14/Server"
+          project="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Server"
           test_dir="${RUNNER_TEMP}/arenasystem-server-input-test"
           mkdir -p "$test_dir"
           javac -d "$test_dir" \
@@ -82,24 +82,36 @@ jobs:
             "$project/tools/TestSkillInputProtocol.java"
           java -cp "$test_dir" id.hadziq.arenasystem.TestSkillInputProtocol
 
+      - name: Verify discrete client click input wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          client="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client/src/main/java/id/hadziq/arenasystem/client"
+          keybinds="$client/ArenaSystemKeybinds.java"
+          offhand="$client/AssassinOffhandInputClient.java"
+          grep -q 'primarySkillKey.consumeClick()' "$keybinds"
+          grep -q 'secondarySkillKey.consumeClick()' "$keybinds"
+          grep -q 'assassinOffhandClickKey.consumeClick()' "$keybinds"
+          ! grep -q 'SkillInputClient.send' "$offhand"
+
       - name: Package clean source ZIP
         run: |
           mkdir -p dist
-          zip -r "dist/ArenaSystem-Assassin-Offhand-0.2.8.14-source.zip" "ArenaSystem-Assassin-Offhand-0.2.8.14" \
+          zip -r "dist/ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-source.zip" "ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7" \
             -x "*/Server/target/*" "*/Client/build/*" "*/Client/.gradle/*"
 
       - name: Upload source bundle
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Assassin-Offhand-0.2.8.14-source
-          path: dist/ArenaSystem-Assassin-Offhand-0.2.8.14-source.zip
+          name: ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-source
+          path: dist/ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-source.zip
           if-no-files-found: error
 
       - name: Upload validated JARs
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Assassin-Offhand-0.2.8.14-jars
+          name: ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-jars
           path: |
-            ArenaSystem-Assassin-Offhand-0.2.8.14/Server/target/arenaSystem_Bukkit-0.2.8.14.jar
-            ArenaSystem-Assassin-Offhand-0.2.8.14/Client/build/libs/ArenaSystem_Client-0.2.6.jar
+            ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Server/target/arenaSystem_Bukkit-0.2.8.14.jar
+            ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client/build/libs/ArenaSystem_Client-0.2.7.jar
           if-no-files-found: error
