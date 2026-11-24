@@ -1,4 +1,4 @@
-name: Build ArenaSystem Assassin Sweep source
+name: Build ArenaSystem Assassin Off-hand Right-click source
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
-          git -C client-repository checkout 671a06983a28a13525977565b0f97f663ddf133a
+          git -C client-repository checkout b19c6262be2f6643612c010cbd2bdca8e3a19317
           mkdir -p ArenaSystem-Assassin-Sweep-0.2.8.12
           cp -R client-repository/ArenaSystemClient ArenaSystem-Assassin-Sweep-0.2.8.12/Client
 
@@ -71,21 +71,21 @@ jobs:
       - name: Package clean source ZIP
         run: |
           mkdir -p dist
-          zip -r "dist/ArenaSystem-Assassin-Sweep-0.2.8.12-source.zip" "ArenaSystem-Assassin-Sweep-0.2.8.12" \
+          zip -r "dist/ArenaSystem-Assassin-Offhand-0.2.8.13-source.zip" "ArenaSystem-Assassin-Sweep-0.2.8.12" \
             -x "*/Server/target/*" "*/Client/build/*" "*/Client/.gradle/*"
 
       - name: Upload source bundle
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Assassin-Sweep-0.2.8.12-source
-          path: dist/ArenaSystem-Assassin-Sweep-0.2.8.12-source.zip
+          name: ArenaSystem-Assassin-Offhand-0.2.8.13-source
+          path: dist/ArenaSystem-Assassin-Offhand-0.2.8.13-source.zip
           if-no-files-found: error
 
       - name: Upload validated JARs
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Assassin-Sweep-0.2.8.12-jars
+          name: ArenaSystem-Assassin-Offhand-0.2.8.13-jars
           path: |
-            ArenaSystem-Assassin-Sweep-0.2.8.12/Server/target/arenaSystem_Bukkit-0.2.8.12.jar
-            ArenaSystem-Assassin-Sweep-0.2.8.12/Client/build/libs/ArenaSystem_Client-0.2.3.jar
+            ArenaSystem-Assassin-Sweep-0.2.8.12/Server/target/arenaSystem_Bukkit-0.2.8.13.jar
+            ArenaSystem-Assassin-Sweep-0.2.8.12/Client/build/libs/ArenaSystem_Client-0.2.4.jar
           if-no-files-found: error
