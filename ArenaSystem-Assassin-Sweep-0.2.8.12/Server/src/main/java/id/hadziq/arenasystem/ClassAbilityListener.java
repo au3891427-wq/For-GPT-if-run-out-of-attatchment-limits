@@ -574,11 +574,13 @@ final class ClassAbilityListener implements Listener {
          Action action = event.getAction();
          if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
             Player player = event.getPlayer();
-            MatchState assassinState = this.activeTdmMatch(player);
-            if (this.isAssassinDualBladeReady(player, assassinState)) {
-               event.setCancelled(true);
-               this.useAssassinOffhand(player, assassinState, this.rayTraceAssassinOffhandTarget(player, assassinState));
-               return;
+            if (action == Action.RIGHT_CLICK_AIR) {
+               MatchState assassinState = this.activeTdmMatch(player);
+               if (this.isAssassinDualBladeReady(player, assassinState)) {
+                  event.setCancelled(true);
+                  this.useAssassinOffhand(player, assassinState, this.rayTraceAssassinOffhandTarget(player, assassinState));
+                  return;
+               }
             }
 
             ItemStack heldItem = player.getInventory().getItemInMainHand();
