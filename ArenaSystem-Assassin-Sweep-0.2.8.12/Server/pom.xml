@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>id.hadziq</groupId>
     <artifactId>arena-system</artifactId>
-    <version>0.2.8.13</version>
+    <version>0.2.8.14</version>
     <packaging>jar</packaging>
     <name>ArenaSystem</name>
-    <description>Hybrid arena match plugin with Assassin right-click off-hand support.</description>
+    <description>Hybrid arena match plugin with client-driven Assassin off-hand input support.</description>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
