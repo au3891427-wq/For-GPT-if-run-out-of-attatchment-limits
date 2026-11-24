@@ -3,7 +3,7 @@
 This bundle contains the Paper plugin and Fabric companion mod for Minecraft/Paper 26.3. Both use Java 25.
 
 - `Server/`: Paper plugin 0.2.8.14, built with Maven.
-- `Client/`: Fabric companion mod 0.2.5, built with Gradle 9.8.0.
+- `Client/`: Fabric companion mod 0.2.6, built with Gradle 9.8.0.
 
 ## Build the server plugin
 
@@ -23,11 +23,11 @@ Open PowerShell in `Client`:
 gradle --no-daemon clean build
 ```
 
-Output: `Client/build/libs/ArenaSystem_Client-0.2.5.jar`. Install it in each player's `mods` folder. Remove older ArenaSystem client JARs first; keep only one.
+Output: `Client/build/libs/ArenaSystem_Client-0.2.6.jar`. Install it in each player's `mods` folder. Remove older ArenaSystem client JARs first; keep only one.
 
 ## Assassin Twin Blade
 
-- Fabric detects a genuine right-click press over air or a player entity and sends action `3` through the existing `arenasystem:skill_input` channel.
+- Fabric detects right-clicks through interaction callbacks for air and player entities, verifies the ArenaSystem dagger marker in both hands, and sends action `3` through the existing `arenasystem:skill_input` channel.
 - The client ignores block targets; vanilla chest, door, button and other block interactions remain unchanged.
 - Paper verifies active TDM, Assassin class, Survival mode and valid ArenaSystem Assassin daggers in both hands.
 - Paper ray-traces the target and only damages a valid enemy within range and line of sight.
