@@ -1,5 +1,5 @@
 name: ArenaSystem
-version: '0.2.8.12'
+version: '0.2.8.13'
 main: id.hadziq.arenasystem.ArenaSystemPlugin
 author: Hadziq
 api-version: '26.3'
