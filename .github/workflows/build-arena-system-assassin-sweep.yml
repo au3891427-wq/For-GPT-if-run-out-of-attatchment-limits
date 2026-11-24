@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
-          git -C client-repository checkout 7ec696731410f4bf7ab9a8087e7e100edb0bbbda
+          git -C client-repository checkout 48194c13f6509296e8d576ac560518be4a757578
           bundle="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7"
           mkdir -p "$bundle"
           cp -R ArenaSystem-Assassin-Sweep-0.2.8.12/Server "$bundle/Server"
@@ -82,7 +82,7 @@ jobs:
             "$project/tools/TestSkillInputProtocol.java"
           java -cp "$test_dir" id.hadziq.arenasystem.TestSkillInputProtocol
 
-      - name: Verify discrete client click input wiring
+      - name: Verify discrete click input and PDC marker detection
         shell: bash
         run: |
           set -euo pipefail
@@ -93,6 +93,8 @@ jobs:
           grep -q 'secondarySkillKey.consumeClick()' "$keybinds"
           grep -q 'assassinOffhandClickKey.consumeClick()' "$keybinds"
           grep -q 'InputConstants.MOUSE_BUTTON_RIGHT' "$keybinds"
+          grep -q 'bukkitValues.contains(marker)' "$keybinds"
+          ! grep -q 'get(marker) instanceof StringTag' "$keybinds"
           ! grep -q 'org.lwjgl.glfw' "$keybinds"
           ! grep -q 'SkillInputClient.send' "$offhand"
 
