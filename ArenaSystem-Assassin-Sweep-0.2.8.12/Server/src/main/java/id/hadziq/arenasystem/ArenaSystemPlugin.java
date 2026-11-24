@@ -266,7 +266,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
 
       this.relicCarrierMovementTask = Bukkit.getScheduler().runTaskTimer(this, this::enforceRelicCarrierMovement, 1L, 1L);
       this.loadArenas();
-      this.getLogger().info("ArenaSystem 0.2.8.13 aktif. Arena siap: " + this.arenas.size());
+      this.getLogger().info("ArenaSystem 0.2.8.14 aktif. Arena siap: " + this.arenas.size());
       if (this.getConfig().getBoolean("updates.enabled", true)) {
          this.updateNotifier = new PluginUpdateNotifier(this);
          this.updateNotifier.start();
@@ -4703,7 +4703,7 @@ public final class ArenaSystemPlugin extends JavaPlugin implements Listener {
    }
 
    void sendHelp(CommandSender sender) {
-      sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.13" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
+      sender.sendMessage(ChatColor.GOLD + "ArenaSystem 0.2.8.14" + ChatColor.GRAY + " — mode-aware hybrid arena, terrain normalizer & match engine");
       sender.sendMessage(ChatColor.YELLOW + "/arena create <nama> [seed] [tdm|relic_rush] " + ChatColor.GRAY + "- seed menentukan variasi jalur dan cover");
       sender.sendMessage(ChatColor.YELLOW + "/arena list | info <nama> | tp <nama> <red|blue|green|yellow|center>");
       sender.sendMessage(ChatColor.YELLOW + "/arena delete <nama> confirm | regenerate <nama> [seed] | recover <nama> [discard confirm]");
