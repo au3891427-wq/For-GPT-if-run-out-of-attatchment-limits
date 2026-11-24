@@ -70,7 +70,6 @@ final class ClassAbilityListener implements Listener {
    private final Map<UUID, Long> pinningProjectiles = new HashMap<>();
    private final Map<UUID, Long> assassinVenomReady = new HashMap<>();
    private final Map<UUID, Long> assassinOffhandReadyAtNanos = new HashMap<>();
-   private final Map<UUID, Integer> assassinOffhandLastSweepTick = new HashMap<>();
    private final Map<UUID, Long> skillInputLastReceivedNanos = new HashMap<>();
    private static final String ASSASSIN_OFFHAND_COOLDOWN_CHANNEL = "arenasystem:assassin_offhand_cooldown";
    private static final double ASSASSIN_OFFHAND_DAMAGE = 2.0;
@@ -575,6 +574,13 @@ final class ClassAbilityListener implements Listener {
          Action action = event.getAction();
          if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
             Player player = event.getPlayer();
+            MatchState assassinState = this.activeTdmMatch(player);
+            if (this.isAssassinDualBladeReady(player, assassinState)) {
+               event.setCancelled(true);
+               this.useAssassinOffhand(player, assassinState, this.rayTraceAssassinOffhandTarget(player, assassinState));
+               return;
+            }
+
             ItemStack heldItem = player.getInventory().getItemInMainHand();
             if (heldItem == null || heldItem.getType() == Material.AIR) {
                heldItem = event.getItem();
@@ -604,55 +610,24 @@ final class ClassAbilityListener implements Listener {
       }
    }
 
-   @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-   public void onAssassinOffhandSweep(EntityDamageByEntityEvent event) {
-      if (event.getCause() != org.bukkit.event.entity.EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK
-         || !(event.getDamager() instanceof Player attacker)
-         || !(event.getEntity() instanceof Player target)
-         || event.getDamage() <= 0.0) {
+   @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+   public void onAssassinOffhandEntityUse(PlayerInteractEntityEvent event) {
+      if (event.getHand() != EquipmentSlot.HAND) {
          return;
       }
 
-      MatchState state = this.activeTdmMatch(attacker);
-      if (!this.isAssassinDualBladeReady(attacker, state)
-         || !this.isEnemy(attacker, target, state)
-         || target.isDead()
-         || target.getGameMode() != GameMode.SURVIVAL
-         || !attacker.getWorld().equals(target.getWorld())) {
+      Player player = event.getPlayer();
+      MatchState state = this.activeTdmMatch(player);
+      if (!this.isAssassinDualBladeReady(player, state)) {
          return;
       }
 
-      UUID attackerId = attacker.getUniqueId();
-      int currentTick = Bukkit.getCurrentTick();
-      int lastSweepTick = this.assassinOffhandLastSweepTick.getOrDefault(attackerId, Integer.MIN_VALUE);
-
-      // All targets damaged by one vanilla sweep arrive in the same server tick.
-      // Apply the off-hand bonus to each target while consuming only one cooldown.
-      if (lastSweepTick != currentTick) {
-         long nowNanos = System.nanoTime();
-         long readyAtNanos = this.assassinOffhandReadyAtNanos.getOrDefault(attackerId, 0L);
-         if (nowNanos < readyAtNanos) {
-            return;
-         }
-
-         this.assassinOffhandReadyAtNanos.put(attackerId, nowNanos + ASSASSIN_OFFHAND_COOLDOWN_NANOS);
-         this.assassinOffhandLastSweepTick.put(attackerId, currentTick);
-         attacker.swingOffHand();
-         this.sendAssassinOffhandCooldown(attacker);
-         attacker.sendActionBar(ChatColor.GOLD + "TWIN BLADE — SWEEP");
-      }
-
-      event.setDamage(event.getDamage() + ASSASSIN_OFFHAND_DAMAGE);
-      target.getWorld().spawnParticle(
-         Particle.CRIT,
-         target.getLocation().add(0.0, 1.0, 0.0),
-         5,
-         0.18,
-         0.22,
-         0.18,
-         0.02
-      );
-      target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_ATTACK_WEAK, 0.75F, 1.55F);
+      event.setCancelled(true);
+      Player target = event.getRightClicked() instanceof Player clicked
+            && this.isValidAssassinOffhandTarget(player, clicked, state)
+         ? clicked
+         : null;
+      this.useAssassinOffhand(player, state, target);
    }
 
    private boolean isAssassinDualBladeReady(Player player, MatchState state) {
@@ -662,6 +637,79 @@ final class ClassAbilityListener implements Listener {
          ? this.plugin.isAssassinBlade(player.getInventory().getItemInMainHand())
             && this.plugin.isAssassinBlade(player.getInventory().getItemInOffHand())
          : false;
+   }
+
+   private void useAssassinOffhand(Player attacker, MatchState state, Player target) {
+      if (!this.isAssassinDualBladeReady(attacker, state)) {
+         return;
+      }
+
+      UUID attackerId = attacker.getUniqueId();
+      long nowNanos = System.nanoTime();
+      long readyAtNanos = this.assassinOffhandReadyAtNanos.getOrDefault(attackerId, 0L);
+      if (nowNanos < readyAtNanos) {
+         long remainingMillis = Math.max(1L, (readyAtNanos - nowNanos + 999_999L) / 1_000_000L);
+         attacker.sendActionBar(ChatColor.YELLOW + "OFF-HAND: " + String.format(Locale.ROOT, "%.1fs", remainingMillis / 1000.0));
+         return;
+      }
+
+      this.assassinOffhandReadyAtNanos.put(attackerId, nowNanos + ASSASSIN_OFFHAND_COOLDOWN_NANOS);
+      attacker.swingOffHand();
+      this.sendAssassinOffhandCooldown(attacker);
+
+      if (!this.isValidAssassinOffhandTarget(attacker, target, state)) {
+         attacker.sendActionBar(ChatColor.GOLD + "TWIN BLADE — OFF-HAND");
+         return;
+      }
+
+      if (target.getNoDamageTicks() > target.getMaximumNoDamageTicks() / 2) {
+         attacker.sendActionBar(ChatColor.GRAY + "OFF-HAND — target masih dalam hit cooldown");
+         return;
+      }
+
+      double healthBefore = target.getHealth();
+      double absorptionBefore = target.getAbsorptionAmount();
+      target.damage(ASSASSIN_OFFHAND_DAMAGE, attacker);
+      boolean damageApplied = target.getHealth() < healthBefore || target.getAbsorptionAmount() < absorptionBefore;
+      if (damageApplied) {
+         target.getWorld().spawnParticle(
+            Particle.CRIT,
+            target.getLocation().add(0.0, 1.0, 0.0),
+            5,
+            0.18,
+            0.22,
+            0.18,
+            0.02
+         );
+         target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_ATTACK_WEAK, 0.75F, 1.55F);
+         attacker.sendActionBar(ChatColor.GOLD + "TWIN BLADE — OFF-HAND HIT");
+      } else {
+         attacker.sendActionBar(ChatColor.GOLD + "TWIN BLADE — OFF-HAND");
+      }
+   }
+
+   private Player rayTraceAssassinOffhandTarget(Player player, MatchState state) {
+      RayTraceResult result = player.getWorld().rayTraceEntities(
+         player.getEyeLocation(),
+         player.getEyeLocation().getDirection(),
+         3.2,
+         0.6,
+         entity -> entity instanceof Player target && this.isEnemy(player, target, state)
+      );
+      return result != null && result.getHitEntity() instanceof Player target
+            && this.isValidAssassinOffhandTarget(player, target, state)
+         ? target
+         : null;
+   }
+
+   private boolean isValidAssassinOffhandTarget(Player attacker, Player target, MatchState state) {
+      return target != null
+         && this.isEnemy(attacker, target, state)
+         && !target.isDead()
+         && target.getGameMode() == GameMode.SURVIVAL
+         && attacker.getWorld().equals(target.getWorld())
+         && attacker.getEyeLocation().distanceSquared(target.getLocation().add(0.0, 1.0, 0.0)) <= 10.24
+         && attacker.hasLineOfSight(target);
    }
 
    private void sendAssassinOffhandCooldown(Player player) {
@@ -1416,7 +1464,6 @@ final class ClassAbilityListener implements Listener {
          this.archerPinningReady.remove(id);
          this.assassinVenomReady.remove(id);
          this.assassinOffhandReadyAtNanos.remove(id);
-         this.assassinOffhandLastSweepTick.remove(id);
          this.sniperFocusActive.remove(id);
          this.ninjaSnowballNextRestock.remove(id);
          this.boxerHeavyJabLastInteractionNanos.remove(id);
@@ -1514,7 +1561,6 @@ final class ClassAbilityListener implements Listener {
       this.sniperAimLocked.clear();
       this.boxerHeavyJabLastInteractionNanos.clear();
       this.assassinOffhandReadyAtNanos.clear();
-      this.assassinOffhandLastSweepTick.clear();
       this.assassinVenomReady.clear();
       this.ninjaSnowballNextRestock.clear();
       this.focusedProjectiles.clear();
