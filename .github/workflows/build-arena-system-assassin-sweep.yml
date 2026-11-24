@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
-          git -C client-repository checkout 0150e882e5b3ae2926ec96f873d1da020b550077
+          git -C client-repository checkout 7ec696731410f4bf7ab9a8087e7e100edb0bbbda
           bundle="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7"
           mkdir -p "$bundle"
           cp -R ArenaSystem-Assassin-Sweep-0.2.8.12/Server "$bundle/Server"
@@ -92,6 +92,8 @@ jobs:
           grep -q 'primarySkillKey.consumeClick()' "$keybinds"
           grep -q 'secondarySkillKey.consumeClick()' "$keybinds"
           grep -q 'assassinOffhandClickKey.consumeClick()' "$keybinds"
+          grep -q 'InputConstants.MOUSE_BUTTON_RIGHT' "$keybinds"
+          ! grep -q 'org.lwjgl.glfw' "$keybinds"
           ! grep -q 'SkillInputClient.send' "$offhand"
 
       - name: Package clean source ZIP
