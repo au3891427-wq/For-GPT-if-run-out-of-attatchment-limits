@@ -14,6 +14,7 @@ public final class TestSkillInputProtocol {
         assertAction("primary", SkillInputProtocol.ACTION_PRIMARY);
         assertAction("secondary", SkillInputProtocol.ACTION_SECONDARY);
         assertAction("Assassin off-hand", SkillInputProtocol.ACTION_ASSASSIN_OFFHAND);
+        assertAction("Sniper Aim Lock", SkillInputProtocol.ACTION_SNIPER_AIM_LOCK);
 
         assertInvalid(null);
         assertInvalid(new byte[5]);
@@ -21,7 +22,7 @@ public final class TestSkillInputProtocol {
         assertInvalid(message(0x11111111, VERSION, SkillInputProtocol.ACTION_ASSASSIN_OFFHAND));
         assertInvalid(message(MAGIC, (byte) 2, SkillInputProtocol.ACTION_ASSASSIN_OFFHAND));
         assertInvalid(message(MAGIC, VERSION, (byte) 0));
-        assertInvalid(message(MAGIC, VERSION, (byte) 4));
+        assertInvalid(message(MAGIC, VERSION, (byte) 5));
 
         System.out.println("ArenaSystem server skill input protocol tests passed.");
     }
