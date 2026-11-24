@@ -1508,6 +1508,7 @@ final class ClassAbilityListener implements Listener {
 
    void cleanupAll() {
       this.skillInputLastReceivedNanos.clear();
+      this.sniperAimLockInputLastReceivedNanos.clear();
       if (this.ninjaSnowballRestockTask != null && !this.ninjaSnowballRestockTask.isCancelled()) {
          this.ninjaSnowballRestockTask.cancel();
       }
