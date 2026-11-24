@@ -7,6 +7,7 @@ final class SkillInputProtocol {
    static final String CHANNEL = "arenasystem:skill_input";
    static final byte ACTION_PRIMARY = 1;
    static final byte ACTION_SECONDARY = 2;
+   static final byte ACTION_ASSASSIN_OFFHAND = 3;
    private static final int MESSAGE_BYTES = 6;
    private static final int MAGIC = 1095914313;
    private static final byte VERSION = 1;
@@ -19,7 +20,7 @@ final class SkillInputProtocol {
          ByteBuffer buffer = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN);
          if (buffer.getInt() == 1095914313 && buffer.get() == 1) {
             byte action = buffer.get();
-            return action != 1 && action != 2 ? 0 : action;
+            return action != ACTION_PRIMARY && action != ACTION_SECONDARY && action != ACTION_ASSASSIN_OFFHAND ? 0 : action;
          } else {
             return 0;
          }
