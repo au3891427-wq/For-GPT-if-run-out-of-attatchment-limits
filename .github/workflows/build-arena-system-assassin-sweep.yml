@@ -34,23 +34,23 @@ jobs:
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
-          git -C client-repository checkout 48194c13f6509296e8d576ac560518be4a757578
-          bundle="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7"
+          git -C client-repository checkout 5d101d9556e29dcd25c14652392c1c79be8e1889
+          bundle="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8"
           mkdir -p "$bundle"
           cp -R ArenaSystem-Assassin-Sweep-0.2.8.12/Server "$bundle/Server"
           cp -R client-repository/ArenaSystemClient "$bundle/Client"
 
       - name: Build Paper plugin with Maven
-        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Server/pom.xml package
+        run: mvn --batch-mode --no-transfer-progress -f ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Server/pom.xml package
 
       - name: Build Fabric client mod
-        run: gradle --no-daemon -p ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client clean build
+        run: gradle --no-daemon -p ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client clean build
 
       - name: Test companion handshake protocol
         shell: bash
         run: |
           set -euo pipefail
-          project="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client"
+          project="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client"
           test_dir="${RUNNER_TEMP}/arenasystem-handshake-test"
           mkdir -p "$test_dir"
           javac -d "$test_dir" \
@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          project="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client"
+          project="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client"
           test_dir="${RUNNER_TEMP}/arenasystem-client-input-test"
           mkdir -p "$test_dir"
           javac -d "$test_dir" \
@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          project="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Server"
+          project="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Server"
           test_dir="${RUNNER_TEMP}/arenasystem-server-input-test"
           mkdir -p "$test_dir"
           javac -d "$test_dir" \
@@ -86,36 +86,51 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          client="ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client/src/main/java/id/hadziq/arenasystem/client"
+          client="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client/src/main/java/id/hadziq/arenasystem/client"
           keybinds="$client/ArenaSystemKeybinds.java"
           offhand="$client/AssassinOffhandInputClient.java"
           grep -q 'primarySkillKey.consumeClick()' "$keybinds"
           grep -q 'secondarySkillKey.consumeClick()' "$keybinds"
           grep -q 'assassinOffhandClickKey.consumeClick()' "$keybinds"
+          grep -q 'sniperAimLockKey.consumeClick()' "$keybinds"
+          grep -q 'SkillInputProtocol.ACTION_SNIPER_AIM_LOCK' "$keybinds"
           grep -q 'InputConstants.MOUSE_BUTTON_RIGHT' "$keybinds"
           grep -q 'bukkitValues.contains(marker)' "$keybinds"
           ! grep -q 'get(marker) instanceof StringTag' "$keybinds"
           ! grep -q 'org.lwjgl.glfw' "$keybinds"
           ! grep -q 'SkillInputClient.send' "$offhand"
 
+      - name: Verify keybind ownership stays on the client
+        shell: bash
+        run: |
+          set -euo pipefail
+          client="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client/src/main/java/id/hadziq/arenasystem/client"
+          server="ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Server/src/main/java/id/hadziq/arenasystem"
+          grep -q 'sniperAimLockKey.consumeClick()' "$client/ArenaSystemKeybinds.java"
+          grep -q 'ACTION_SNIPER_AIM_LOCK' "$client/SkillInputProtocol.java"
+          grep -q 'ACTION_SNIPER_AIM_LOCK' "$server/SkillInputProtocol.java"
+          grep -q 'toggleSniperAimLock(player)' "$server/ClassAbilityListener.java"
+          ! grep -q 'onPrimarySkillKey' "$server/ClassAbilityListener.java"
+          ! grep -q 'getCurrentInput()' "$server/ClassAbilityListener.java"
+
       - name: Package clean source ZIP
         run: |
           mkdir -p dist
-          zip -r "dist/ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-source.zip" "ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7" \
+          zip -r "dist/ArenaSystem-Client-Input-0.2.8.15-client-0.2.8-source.zip" "ArenaSystem-Client-Input-0.2.8.15-client-0.2.8" \
             -x "*/Server/target/*" "*/Client/build/*" "*/Client/.gradle/*"
 
       - name: Upload source bundle
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-source
-          path: dist/ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-source.zip
+          name: ArenaSystem-Client-Input-0.2.8.15-client-0.2.8-source
+          path: dist/ArenaSystem-Client-Input-0.2.8.15-client-0.2.8-source.zip
           if-no-files-found: error
 
       - name: Upload validated JARs
         uses: actions/upload-artifact@v4
         with:
-          name: ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7-jars
+          name: ArenaSystem-Client-Input-0.2.8.15-client-0.2.8-jars
           path: |
-            ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Server/target/arenaSystem_Bukkit-0.2.8.14.jar
-            ArenaSystem-Assassin-Offhand-0.2.8.14-client-0.2.7/Client/build/libs/ArenaSystem_Client-0.2.7.jar
+            ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Server/target/arenaSystem_Bukkit-0.2.8.14.jar
+            ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client/build/libs/ArenaSystem_Client-0.2.7.jar
           if-no-files-found: error
