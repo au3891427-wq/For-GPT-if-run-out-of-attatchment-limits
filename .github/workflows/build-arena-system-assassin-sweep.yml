@@ -141,6 +141,6 @@ jobs:
         with:
           name: ArenaSystem-Client-Input-0.2.8.15-client-0.2.8-jars
           path: |
-            ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Server/target/arenaSystem_Bukkit-0.2.8.14.jar
-            ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client/build/libs/ArenaSystem_Client-0.2.7.jar
+            ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Server/target/arenaSystem_Bukkit-0.2.8.15.jar
+            ArenaSystem-Client-Input-0.2.8.15-client-0.2.8/Client/build/libs/ArenaSystem_Client-0.2.8.jar
           if-no-files-found: error
