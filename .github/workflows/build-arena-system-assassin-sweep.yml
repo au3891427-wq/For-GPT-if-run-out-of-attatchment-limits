@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/au3891427-wq/proyek-arenasystem-plugin.git client-repository
-          git -C client-repository checkout 80a3c8a87d9b5616788f331c612cc9bbf24d7974
+          git -C client-repository checkout 541c713759391c0c9ac712cf2f6a61e3fbf6fd08
           bundle="ArenaSystem-Assassin-Offhand-0.2.8.14"
           mkdir -p "$bundle"
           cp -R ArenaSystem-Assassin-Sweep-0.2.8.12/Server "$bundle/Server"
@@ -101,5 +101,5 @@ jobs:
           name: ArenaSystem-Assassin-Offhand-0.2.8.14-jars
           path: |
             ArenaSystem-Assassin-Offhand-0.2.8.14/Server/target/arenaSystem_Bukkit-0.2.8.14.jar
-            ArenaSystem-Assassin-Offhand-0.2.8.14/Client/build/libs/ArenaSystem_Client-0.2.5.jar
+            ArenaSystem-Assassin-Offhand-0.2.8.14/Client/build/libs/ArenaSystem_Client-0.2.6.jar
           if-no-files-found: error
