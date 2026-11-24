@@ -14,7 +14,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
-import org.bukkit.Input;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -72,6 +71,7 @@ final class ClassAbilityListener implements Listener {
    private final Map<UUID, Long> assassinOffhandReadyAtNanos = new HashMap<>();
    private final Map<UUID, Long> assassinOffhandInputLastReceivedNanos = new HashMap<>();
    private final Map<UUID, Long> skillInputLastReceivedNanos = new HashMap<>();
+   private final Map<UUID, Long> sniperAimLockInputLastReceivedNanos = new HashMap<>();
    private static final String ASSASSIN_OFFHAND_COOLDOWN_CHANNEL = "arenasystem:assassin_offhand_cooldown";
    private static final double ASSASSIN_OFFHAND_DAMAGE = 2.0;
    private static final int ASSASSIN_OFFHAND_COOLDOWN_TICKS = 12;
@@ -731,17 +731,9 @@ final class ClassAbilityListener implements Listener {
          } else if (state != null
             && "sniper".equalsIgnoreCase(state.selectedClasses.getOrDefault(player.getUniqueId(), "knight"))
             && this.sniperTargetsByOwner.containsKey(player.getUniqueId())) {
+            // The client sends ACTION_SNIPER_AIM_LOCK. Keep Q's vanilla drop packet
+            // from dropping an item, but never interpret this event as the skill input.
             event.setCancelled(true);
-            UUID id = player.getUniqueId();
-            if (!this.hasValidSniperMark(player)) {
-               this.clearSniperMarkOwnedBy(id);
-               player.sendActionBar(ChatColor.GRAY + "MARK tidak lagi valid");
-            } else if (this.sniperAimLocked.remove(id)) {
-               player.sendActionBar(ChatColor.GRAY + "AIM LOCK OFF");
-            } else {
-               this.sniperAimLocked.add(id);
-               player.sendActionBar(ChatColor.AQUA + "AIM LOCK ON — bidikan mengikuti target MARK");
-            }
          } else if (this.plugin.readClassSkill(event.getItemDrop().getItemStack()) != null) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.YELLOW + "Item skill class tidak dapat dijatuhkan.");
@@ -944,6 +936,7 @@ final class ClassAbilityListener implements Listener {
 
    @EventHandler
    public void onPlayerDeath(PlayerDeathEvent event) {
+      this.sniperAimLockInputLastReceivedNanos.remove(event.getEntity().getUniqueId());
       this.cancelFor(event.getEntity());
    }
 
@@ -951,31 +944,8 @@ final class ClassAbilityListener implements Listener {
    public void onPlayerQuit(PlayerQuitEvent event) {
       Player player = event.getPlayer();
       this.skillInputLastReceivedNanos.remove(player.getUniqueId());
+      this.sniperAimLockInputLastReceivedNanos.remove(player.getUniqueId());
       this.cancelFor(player);
-   }
-
-   @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-   public void onPrimarySkillKey(PlayerSwapHandItemsEvent event) {
-      Player player = event.getPlayer();
-      if (player.getGameMode() != GameMode.SURVIVAL) {
-         event.setCancelled(true);
-      } else if (this.vanishedPlayers.contains(player.getUniqueId())) {
-         event.setCancelled(true);
-      } else {
-         MatchState state = this.activeTdmMatch(player);
-         if (state != null) {
-            String className = state.selectedClasses.getOrDefault(player.getUniqueId(), "knight").toLowerCase();
-            Input input = player.getCurrentInput();
-            boolean modifierHeld = input.isSneak() || input.isSprint();
-            String secondarySkill = modifierHeld ? this.secondarySkill(className) : null;
-            String skill = secondarySkill != null ? secondarySkill : this.primarySkill(className);
-            if (skill != null) {
-               event.setCancelled(true);
-               Material trigger = secondarySkill != null ? this.secondarySkillMaterial(className) : this.primarySkillMaterial(className);
-               this.activate(player, state, skill, trigger);
-            }
-         }
-      }
    }
 
    private String primarySkill(String className) {
@@ -1083,12 +1053,43 @@ final class ClassAbilityListener implements Listener {
       return null;
    }
 
+   private void toggleSniperAimLock(Player player) {
+      UUID playerId = player.getUniqueId();
+      MatchState state = this.activeTdmMatch(player);
+      if (state == null
+         || !"sniper".equalsIgnoreCase(state.selectedClasses.getOrDefault(playerId, "knight"))
+         || !this.sniperTargetsByOwner.containsKey(playerId)) {
+         return;
+      }
+
+      if (!this.hasValidSniperMark(player)) {
+         this.clearSniperMarkOwnedBy(playerId);
+         player.sendActionBar(ChatColor.GRAY + "MARK tidak lagi valid");
+      } else if (this.sniperAimLocked.remove(playerId)) {
+         player.sendActionBar(ChatColor.GRAY + "AIM LOCK OFF");
+      } else {
+         this.sniperAimLocked.add(playerId);
+         player.sendActionBar(ChatColor.AQUA + "AIM LOCK ON — bidikan mengikuti target MARK");
+      }
+   }
+
    void handleSkillInput(Player player, byte action) {
       if (player == null
          || !player.isOnline()
          || player.isDead()
          || player.getGameMode() != GameMode.SURVIVAL
          || this.vanishedPlayers.contains(player.getUniqueId())) {
+         return;
+      }
+
+      if (action == SkillInputProtocol.ACTION_SNIPER_AIM_LOCK) {
+         UUID playerId = player.getUniqueId();
+         long now = System.nanoTime();
+         long previous = this.sniperAimLockInputLastReceivedNanos.getOrDefault(playerId, 0L);
+         if (previous == 0L || now - previous >= 75000000L) {
+            this.sniperAimLockInputLastReceivedNanos.put(playerId, now);
+            this.toggleSniperAimLock(player);
+         }
          return;
       }
 
